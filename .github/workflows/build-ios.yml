@@ -53,27 +53,27 @@ jobs:
           mkdir -p build/ipa/Payload
           cp -R build/App.xcarchive/Products/Applications/App.app build/ipa/Payload/
           cd build/ipa
-          zip -qry "../../AtlasVault-unsigned.ipa" Payload
+          zip -qry "../../AccountVault-unsigned.ipa" Payload
           cd ../..
-          ls -lh AtlasVault-unsigned.ipa
-          cp AtlasVault-unsigned.ipa "$GITHUB_WORKSPACE/"
+          ls -lh AccountVault-unsigned.ipa
+          cp AccountVault-unsigned.ipa "$GITHUB_WORKSPACE/"
 
       - name: 上传 IPA 到 Releases
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0
-          name: 账号星图 加固版 v1.0
+          name: 账号仓库 加固版 v1.0
           body: |
-            ## 账号星图·加固版 三端安装包
+            ## 账号仓库·加固版 三端安装包
 
             端到端加密（主密码 + AES-256-GCM）的账号密码本地管理工具。
 
-            - **Android**：`账号星图-加固版-v1.0.apk`（包名 com.atlasvault.app，可覆盖升级）
-            - **Windows**：`账号星图-加固版-便携版.exe`（免安装便携版）
-            - **iOS**：`AtlasVault-unsigned.ipa`（未签名，请用你自己的证书签名安装）
+            - **Android**：`账号仓库-加固版-v1.0.apk`（包名 com.atlasvault.app，可覆盖升级）
+            - **Windows**：`账号仓库-加固版-便携版.exe`（免安装便携版）
+            - **iOS**：`AccountVault-unsigned.ipa`（未签名，请用你自己的证书签名安装）
 
             主密码忘记无法找回，请妥善保管。
           files: |
-            AtlasVault-unsigned.ipa
+            AccountVault-unsigned.ipa
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

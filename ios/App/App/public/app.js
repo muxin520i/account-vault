@@ -235,7 +235,7 @@
   let toastTimer;
   function toast(msg, action) {
     const t = $('#toast');
-    t.innerHTML = `<img class="ti" src="icon.png?v=4" alt=""><span class="tx"><span class="tn">账号星图</span><span class="tt">${esc(msg)}</span></span>${action ? `<button>${esc(action.label)}</button>` : ''}`;
+    t.innerHTML = `<img class="ti" src="icon.png?v=4" alt=""><span class="tx"><span class="tn">账号仓库</span><span class="tt">${esc(msg)}</span></span>${action ? `<button>${esc(action.label)}</button>` : ''}`;
     if (action) t.querySelector('button').onclick = () => { action.fn(); t.classList.remove('show'); };
     t.classList.add('show');
     clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), action ? 4500 : 2200);
@@ -1017,7 +1017,7 @@
         if (p.length < 8) { shake(); toast('密码不对'); return; }
         try {
           const text = await Vault.exportEncrypted(p);
-          doDownload(text, `账号星图-加密备份-${day}.atlasbackup.json`);
+          doDownload(text, `账号仓库-加密备份-${day}.atlasbackup.json`);
           closeSheet(); toast('加密备份已导出');
         } catch (e) { shake(); toast(e && e.message === 'BAD_PASSWORD' ? '主密码不对' : '导出失败'); }
       };
@@ -1052,7 +1052,7 @@
         }
         d = parsed;
         applyImport(d);
-      } catch { toast('这不是有效的 Atlas 备份文件'); }
+      } catch { toast('这不是有效的 账号仓库备份文件'); }
     };
     function applyImport(d) {
       if (!d || !Array.isArray(d.identities) || !Array.isArray(d.accounts)) { toast('备份格式不对'); return; }
@@ -1257,7 +1257,7 @@
 
   // ---------- end-to-end encrypted sync (Gitee or GitHub private gist) ----------
   const Sync = (() => {
-    const CONF = 'atlas.sync', FILE = 'atlas.enc.json', DESC = '账号星图 · 加密数据（只有同步密码能解开）';
+    const CONF = 'atlas.sync', FILE = 'atlas.enc.json', DESC = '账号仓库 · 加密数据（只有同步密码能解开）';
     const enc = new TextEncoder(), dec = new TextDecoder();
     const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
     const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1524,7 +1524,7 @@
     gateEl.innerHTML = `
       <div class="vault-card">
         <div class="vault-mark"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.5" r="1.4"/></svg></div>
-        <h1>${isSetup ? '设置主密码' : '解锁账号星图'}</h1>
+        <h1>${isSetup ? '设置主密码' : '解锁账号仓库'}</h1>
         <p class="vault-sub">${isSetup ? '这个密码用来加密你保存在本机的数据，忘了无法找回。' : '输入主密码以解密你的数据'}</p>
         <div class="vault-field"><input id="vPass" type="password" autocomplete="${isSetup ? 'new-password' : 'current-password'}" placeholder="${isSetup ? '至少 8 位' : '主密码'}" autocomplete="off" spellcheck="false"></div>
         ${isSetup ? '<div class="vault-field"><input id="vPass2" type="password" placeholder="再输入一次" autocomplete="new-password" spellcheck="false"></div>' : ''}

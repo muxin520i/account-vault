@@ -1,4 +1,4 @@
-# 账号星图·加固版
+# 账号仓库·加固版
 
 端到端加密的账号密码本地管理工具（Android / Windows / iOS 三端）。
 
@@ -14,8 +14,8 @@
 
 到 [Releases](../../releases) 页面下载三端安装包：
 
-- **Android**：`账号星图-加固版-v1.0.apk`（包名 `com.atlasvault.app`，固定签名可覆盖升级）
-- **Windows**：`账号星图-加固版-便携版.exe`（免安装，双击即用）
+- **Android**：`账号仓库-加固版-v1.0.apk`（包名 `com.atlasvault.app`，固定签名可覆盖升级）
+- **Windows**：`账号仓库-加固版-便携版.exe`（免安装，双击即用）
 - **iOS**：`AtlasVault-unsigned.ipa`（未签名，请用你自己的 Apple 证书签名安装）
 
 ## 源码结构

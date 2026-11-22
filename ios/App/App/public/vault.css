@@ -1,4 +1,4 @@
-/* Atlas Vault — 解锁门 / 主密码界面样式 */
+/* Account Vault — 解锁门 / 主密码界面样式 */
 .vault-gate {
   position: fixed; inset: 0; z-index: 9999;
   display: flex; align-items: center; justify-content: center;
