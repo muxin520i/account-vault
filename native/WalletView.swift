@@ -117,7 +117,6 @@ struct TopButtons: ToolbarContent {
         }
       } label: {
         Image(systemName: sync.state == "syncing" ? "arrow.triangle.2.circlepath" : "icloud.and.arrow.up")
-          .symbolEffect(.rotate, isActive: sync.state == "syncing")
       }
       Menu {
         Button { store.route = .picker(store.active?.id) } label: { Label("添加网站或 App", systemImage: "square.grid.2x2") }
