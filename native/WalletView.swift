@@ -97,6 +97,7 @@ struct Glow: View {
 
 struct TopButtons: ToolbarContent {
   @Environment(Store.self) var store
+  @EnvironmentObject var sync: Sync
   var body: some ToolbarContent {
     ToolbarItemGroup(placement: .topBarTrailing) {
       Button {
@@ -105,6 +106,18 @@ struct TopButtons: ToolbarContent {
         Image(systemName: store.theme == "light" ? "moon.fill" : "sun.max.fill")
           .contentTransition(.symbolEffect(.replace.downUp))
           .background(ThemeOrigin())
+      }
+      Button {
+        if sync.on {
+          store.show("正在同步…")
+          Task { await sync.run() }
+        } else {
+          store.route = .settings
+          store.show("请先在设置里开启加密同步")
+        }
+      } label: {
+        Image(systemName: sync.state == "syncing" ? "arrow.triangle.2.circlepath" : "icloud.and.arrow.up")
+          .symbolEffect(.rotate, isActive: sync.state == "syncing")
       }
       Menu {
         Button { store.route = .picker(store.active?.id) } label: { Label("添加网站或 App", systemImage: "square.grid.2x2") }

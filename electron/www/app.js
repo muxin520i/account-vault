@@ -518,7 +518,8 @@
   const MOTION = {
     addBtn: [[{ transform: 'none' }, { transform: 'rotate(90deg) scale(.72)', offset: .45 }, { transform: 'rotate(180deg)' }], 560],
     openSearch: [[{ transform: 'none' }, { transform: 'rotate(-20deg) scale(1.2) translate(-1px,-1px)', offset: .4 }, { transform: 'none' }], 560],
-    themeBtn: [[{ transform: 'none' }, { transform: 'scale(.8)', offset: .35 }, { transform: 'none' }], 520]
+    themeBtn: [[{ transform: 'none' }, { transform: 'scale(.8)', offset: .35 }, { transform: 'none' }], 520],
+    syncNowBtn: [[{ transform: 'none' }, { transform: 'rotate(180deg) scale(.85)', offset: .5 }, { transform: 'none' }], 560]
   };
   function tapFx(b) {
     if (calm()) return;
@@ -1254,6 +1255,7 @@
     if (t.id === 'addBtn') return setTimeout(() => !state.identities.length ? identityForm() : pickApps(ui.tab === 'home' ? cur()?.id : null), calm() ? 0 : 110);
     if (d.kind) return switchKind(d.kind);
     if (t.id === 'gridAdd') return pickApps(cur()?.id);
+    if (t.id === 'syncNowBtn') return (Sync.on ? (toast('正在同步…'), Sync.now()) : (syncSheet(), toast('请先在同步设置里开启加密同步')));
     if (t.id === 'openSearch') return setTimeout(openSpot, calm() ? 0 : 110);
     if (t.id === 'spotCancel') return closeSpot();
     if (d.act) {

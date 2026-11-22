@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Key
@@ -87,6 +88,13 @@ fun TopButtons() {
       AnimatedContent(light, transitionSpec = { (fadeIn() + scaleIn(initialScale = 0.6f)) togetherWith fadeOut() }, label = "sun") { l ->
         Icon(if (l) Icons.Filled.DarkMode else Icons.Filled.LightMode, "外观", Modifier.size(20.dp), tint = pal.accent)
       }
+    }
+    Spacer(Modifier.width(8.dp))
+    RoundButton(onClick = {
+      if (Sync.on) { Store.show("正在同步…"); Sync.runNow() }
+      else { Store.push(Route.Settings); Store.show("请先在设置里开启加密同步") }
+    }) {
+      Icon(Icons.Filled.Sync, "同步", Modifier.size(20.dp), tint = pal.accent)
     }
     Spacer(Modifier.width(8.dp))
     Box {

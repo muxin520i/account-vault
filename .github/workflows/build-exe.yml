@@ -33,14 +33,14 @@ jobs:
         run: |
           $exe = Get-ChildItem electron/dist/*.exe | Where-Object { $_.Name -notlike '*unpacked*' } | Select-Object -First 1
           Write-Host "Built: $($exe.FullName) ($($exe.Length) bytes)"
-          Copy-Item $exe.FullName account-vault-web-v2.6.exe
+          Copy-Item $exe.FullName account-vault-web-v2.7.exe
 
       - name: Upload EXE to Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.6
-          name: 账号仓库 v2.6（删开屏图与示例弹窗 · EXE 修复加密同步）
-          files: account-vault-web-v2.6.exe
+          tag_name: v2.7
+          name: 账号仓库 v2.7（顶栏新增一键同步按钮）
+          files: account-vault-web-v2.7.exe
           fail_on_unmatched_files: true
           overwrite_files: true
         env:
