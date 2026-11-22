@@ -1,7 +1,7 @@
 package com.accountvault.app
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -86,7 +86,7 @@ import androidx.compose.runtime.withFrameNanos
 import kotlin.math.hypot
 import kotlin.math.max
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
   private var _unlocked = androidx.compose.runtime.mutableStateOf(false)
   val unlocked: androidx.compose.runtime.State<Boolean> get() = _unlocked
 

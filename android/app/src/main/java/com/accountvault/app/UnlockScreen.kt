@@ -44,7 +44,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 
 /**
  * 账号仓库 · 解锁门（背景图 + 密码）
@@ -57,7 +57,7 @@ fun UnlockGate(onUnlocked: (firstSetup: Boolean) -> Unit) {
   var pass2 by remember { mutableStateOf("") }
   var err by remember { mutableStateOf("") }
   val ctx = LocalContext.current
-  val activity = ctx as? ComponentActivity
+  val activity = ctx as? FragmentActivity
   val bioEnabled = !setup && activity != null && Biometric.isEnabled(ctx) && Biometric.available(ctx)
 
   MaterialTheme(colorScheme = darkColorScheme(

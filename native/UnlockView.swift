@@ -79,14 +79,13 @@ struct UnlockView: View {
 
   private func bioUnlock() {
     err = ""
-    Biometric.unlock(reason: "验证以解锁账号仓库") { result in
-      switch result {
-      case .success(let p):
+    Biometric.unlock(reason: "验证以解锁账号仓库", onPassword: { p in
+      Task { @MainActor in
         if vault.unlock(p) { onUnlocked(false) } else { err = "生物识别凭据已失效，请用密码解锁" }
-      case .failure(let msg):
-        err = msg
       }
-    }
+    }, onError: { msg in
+      Task { @MainActor in err = msg }
+    })
   }
 
   private func submit() {

@@ -37,46 +37,49 @@ enum Biometric {
 
   /// 开启：验证当前密码 → 弹生物识别 → 把密码存入带 biometry 门禁的 Keychain
   static func enable(password: String, reason: String, completion: @escaping (Bool, String) -> Void) {
-    guard Vault.shared.verify(password) else { completion(false, "当前密码错误"); return }
-    guard let access = SecAccessControlCreateWithFlags(
-      nil,
-      kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-      .biometryCurrentSet,
-      nil
-    ) else { completion(false, "此设备不支持生物识别"); return }
+    // verify 是 @MainActor，先切主线程校验密码
+    DispatchQueue.main.async {
+      guard Vault.shared.verify(password) else { completion(false, "当前密码错误"); return }
+      guard let access = SecAccessControlCreateWithFlags(
+        nil,
+        kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+        .biometryCurrentSet,
+        nil
+      ) else { completion(false, "此设备不支持生物识别"); return }
 
-    let ctx = LAContext()
-    ctx.localizedReason = reason
-    var err: NSError?
-    guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &err) else {
-      completion(false, "此设备未设置指纹或面容"); return
-    }
-    ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { ok, error in
-      DispatchQueue.main.async {
-        guard ok else { completion(false, error?.localizedDescription ?? "验证失败"); return }
-        var q = query()
-        q[kSecValueData as String] = Data(password.utf8)
-        q[kSecAttrAccessControl as String] = access
-        SecItemDelete(q as CFDictionary) // 先删旧条目，避免重复
-        let status = SecItemAdd(q as CFDictionary, nil)
-        if status == errSecSuccess { completion(true, "") }
-        else { completion(false, "保存失败（\(status)）") }
+      let ctx = LAContext()
+      ctx.localizedReason = reason
+      var err: NSError?
+      guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &err) else {
+        completion(false, "此设备未设置指纹或面容"); return
+      }
+      ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { ok, error in
+        DispatchQueue.main.async {
+          guard ok else { completion(false, error?.localizedDescription ?? "验证失败"); return }
+          var q = query()
+          q[kSecValueData as String] = Data(password.utf8)
+          q[kSecAttrAccessControl as String] = access
+          SecItemDelete(q as CFDictionary) // 先删旧条目，避免重复
+          let status = SecItemAdd(q as CFDictionary, nil)
+          if status == errSecSuccess { completion(true, "") }
+          else { completion(false, "保存失败（\(status)）") }
+        }
       }
     }
   }
 
-  /// 解锁：弹生物识别 → 取出密码 → 回调交给 Vault.unlock
-  static func unlock(reason: String, completion: @escaping (Result<String, String>) -> Void) {
-    guard isEnabled() else { completion(.failure("尚未开启生物识别解锁")); return }
+  /// 解锁：弹生物识别 → 取出密码 → 成功回调密码，失败回调原因
+  static func unlock(reason: String, onPassword: @escaping (String) -> Void, onError: @escaping (String) -> Void) {
+    guard isEnabled() else { onError("尚未开启生物识别解锁"); return }
     let ctx = LAContext()
     ctx.localizedReason = reason
     var err: NSError?
     guard ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &err) else {
-      completion(.failure("此设备未设置指纹或面容")); return
+      onError("此设备未设置指纹或面容"); return
     }
     ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { ok, error in
       DispatchQueue.main.async {
-        guard ok else { completion(.failure(error?.localizedDescription ?? "验证失败")); return }
+        guard ok else { onError(error?.localizedDescription ?? "验证失败"); return }
         var q = query()
         q[kSecReturnData as String] = true
         q[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -85,9 +88,9 @@ enum Biometric {
         guard SecItemCopyMatching(q as CFDictionary, &item) == errSecSuccess,
               let data = item as? Data,
               let pass = String(data: data, encoding: .utf8) else {
-          completion(.failure("读取凭据失败，请重新开启生物识别")); return
+          onError("读取凭据失败，请重新开启生物识别"); return
         }
-        completion(.success(pass))
+        onPassword(pass)
       }
     }
   }

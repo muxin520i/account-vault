@@ -66,6 +66,7 @@ dependencies {
   implementation("androidx.compose.material:material-icons-extended")
   implementation("androidx.activity:activity-compose:1.10.1")
   implementation("androidx.biometric:biometric:1.2.0-alpha05")
+  implementation("androidx.fragment:fragment-ktx:1.8.9")
   implementation("androidx.core:core-ktx:1.16.0")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")

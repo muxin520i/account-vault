@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
@@ -80,7 +80,7 @@ object Biometric {
 
   /** 开启：先验证当前密码，再经生物识别授权把密码加密保存 */
   fun enable(
-    activity: ComponentActivity,
+    activity: FragmentActivity,
     password: String,
     onOk: () -> Unit,
     onErr: (String) -> Unit,
@@ -113,7 +113,7 @@ object Biometric {
 
   /** 解锁：经生物识别授权取出密码，回调给解锁页走 Vault.unlock */
   fun unlock(
-    activity: ComponentActivity,
+    activity: FragmentActivity,
     onPassword: (String) -> Unit,
     onErr: (String) -> Unit,
   ) {

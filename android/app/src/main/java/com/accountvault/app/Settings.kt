@@ -1,7 +1,7 @@
 package com.accountvault.app
 
 import android.text.format.DateUtils
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -119,7 +119,7 @@ fun SettingsSheet() {
 @Composable
 fun SettingsMain(go: (String) -> Unit) {
   val ctx = LocalContext.current
-  val activity = ctx as? ComponentActivity
+  val activity = ctx as? FragmentActivity
   var themeMenu by remember { mutableStateOf(false) }
   var pwDialog by remember { mutableStateOf(false) }
   var bioDialog by remember { mutableStateOf(false) }
@@ -233,7 +233,7 @@ fun SettingsMain(go: (String) -> Unit) {
 
 @Composable
 private fun BiometricEnableDialog(
-  activity: ComponentActivity,
+  activity: FragmentActivity,
   onDismiss: () -> Unit,
   onDone: (Boolean, String) -> Unit,
 ) {
@@ -254,9 +254,9 @@ private fun BiometricEnableDialog(
       androidx.compose.material3.TextButton(onClick = {
         if (pass.isBlank()) { err = "请输入当前密码"; return@TextButton }
         Biometric.enable(activity, pass, onOk = { onDone(true, "") }, onErr = { err = it })
-      }) { T("开启") }
+      }) { T("开启", 14f) }
     },
-    dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { T("取消") } },
+    dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { T("取消", 14f) } },
   )
 }
 
