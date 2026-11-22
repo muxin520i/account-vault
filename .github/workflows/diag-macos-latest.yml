@@ -1,8 +1,0 @@
-name: 诊断_macos-latest
-on:
-  workflow_dispatch:
-jobs:
-  diag:
-    runs-on: macos-latest
-    steps:
-      - run: echo "macos-latest OK"
