@@ -1,0 +1,8 @@
+name: 诊断_macos-15
+on:
+  workflow_dispatch:
+jobs:
+  diag:
+    runs-on: macos-15
+    steps:
+      - run: echo "macos-15 OK"
