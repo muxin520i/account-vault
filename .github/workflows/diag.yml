@@ -1,0 +1,9 @@
+name: 诊断测试
+on:
+  workflow_dispatch:
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 测试
+        run: echo "runner 正常工作"
