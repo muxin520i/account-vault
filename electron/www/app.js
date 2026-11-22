@@ -1638,7 +1638,6 @@
   if (state) remember();
   if (!state) {
     state = demo(); save();
-    setTimeout(() => toast('这是示例数据', { label: '清空', fn: () => { state = { identities: [], accounts: [] }; save(); render(); } }), 1400);
   }
   if (!state.identities.some(i => i.type === ui.kind)) { const t = state.identities.find(i => KINDS.includes(i.type)); if (t) ui.kind = t.type; }
 
@@ -1650,11 +1649,3 @@
   const deal = $$('#wallet .wcard').map((c, k) => c.animate([{ translate: '60px 0', opacity: 0 }, { translate: '0 0', opacity: 1 }], { duration: 800, delay: 80 + k * 70, easing: 'cubic-bezier(.32,.72,0,1)', fill: 'backwards' }).finished);
   Promise.allSettled(deal).then(() => { W.style.scrollSnapType = ''; const c = $$('.wcard', W)[ui.active]; if (c && ui.tab === 'home') W.scrollLeft = cardX(W, c); if (geo) geo.ok = false; coverflow(); });
 })();
-
-// 启动开屏图：1.6 秒后淡出并移除
-setTimeout(() => {
-  const sp = document.getElementById('splash');
-  if (!sp) return;
-  sp.style.opacity = '0';
-  setTimeout(() => sp.remove(), 450);
-}, 1600);

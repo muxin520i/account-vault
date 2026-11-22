@@ -28,11 +28,9 @@ jobs:
           test -f "$APP/AccountVault"
           cp -R icons "$APP/icons"
           cp -R native/lproj/*.lproj "$APP/"
-          # 解锁页背景图打进 App bundle 根目录
-          cp unlock-bg.jpg "$APP/unlock-bg.jpg"
           for f in "$APP"/*.lproj/InfoPlist.strings; do plutil -convert binary1 "$f"; done
-          BUILD=24
-          sed -e "s/__VERSION__/2.5/" -e "s/__BUILD__/$BUILD/" native/Info.plist > "$APP/Info.plist"
+          BUILD=25
+          sed -e "s/__VERSION__/2.6/" -e "s/__BUILD__/$BUILD/" native/Info.plist > "$APP/Info.plist"
           xcrun actool Assets.xcassets --compile "$APP" --platform iphoneos --minimum-deployment-target 17.0 \
             --app-icon AppIcon --output-partial-info-plist build/partial.plist --target-device iphone
           /usr/libexec/PlistBuddy -c "Merge build/partial.plist" "$APP/Info.plist"
@@ -48,8 +46,8 @@ jobs:
       - name: Upload IPA to Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.5
-          name: 账号仓库 v2.5（删应用内密码 · 启动开屏图 · 同步上游v2.2新功能）
+          tag_name: v2.6
+          name: 账号仓库 v2.6（删启动开屏图与示例数据弹窗）
           files: AccountVault-unsigned.ipa
           fail_on_unmatched_files: true
         env:

@@ -105,12 +105,6 @@ class MainActivity : ComponentActivity() {
       "settings" -> Store.push(Route.Settings)
       "new" -> Store.push(Route.NewIdentity("email"))
     }
-    if (savedInstanceState == null && Store.data.demo == true && intent?.hasExtra("atlasRoute") != true && intent?.hasExtra("atlasTab") != true) {
-      Store.show("这是示例数据", "清空") {
-        Store.mutate(null) { it.copy(identities = emptyList(), accounts = emptyList()) }
-        Store.setKind(Store.kind)
-      }
-    }
     enableEdgeToEdge(SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT))
     setContent { AtlasRoot(startTab) }
   }
@@ -162,29 +156,6 @@ fun AtlasRoot(startTab: Int) {
             clipPath(Path().apply { addOval(Rect(o, r)) }, ClipOp.Difference) { drawImage(img) }
           }
         }
-        SplashScreen()
-      }
-    }
-  }
-}
-
-/** 启动开屏图：显示约 1.6 秒后淡出，遮罩保证图标/文字可读。 */
-@Composable
-private fun SplashScreen() {
-  var visible by remember { mutableStateOf(true) }
-  val alpha by animateFloatAsState(if (visible) 1f else 0f, tween(420), label = "splash")
-  LaunchedEffect(Unit) {
-    kotlinx.coroutines.delay(1600)
-    visible = false
-  }
-  if (alpha > 0.001f) {
-    Box(Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha }) {
-      Image(painterResource(R.drawable.unlock_bg), null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-      Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.28f)))
-      Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-        Image(painterResource(R.mipmap.ic_launcher_flat), null, Modifier.size(72.dp).clip(RoundedCornerShape(17.dp)))
-        Spacer(Modifier.height(14.dp))
-        T("账号仓库", 22f, FontWeight.Bold, Color.White)
       }
     }
   }
