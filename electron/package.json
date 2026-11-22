@@ -1,0 +1,52 @@
+{
+  "name": "account-vault",
+  "version": "1.0.0",
+  "description": "账号仓库·加固版 - 端到端加密的账号密码本地管理工具",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "build": {
+    "appId": "com.accountvault.desktop",
+    "productName": "账号仓库",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "www/**/*",
+      "icon.ico",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "icon.ico",
+      "signAndEditExecutable": false
+    },
+    "portable": {
+      "artifactName": "account-vault-portable-${version}.exe"
+    },
+    "nsis": {
+      "artifactName": "account-vault-setup-${version}.exe",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "compression": "maximum"
+  },
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-builder": "^24.13.3"
+  }
+}

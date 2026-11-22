@@ -62,17 +62,17 @@ struct SettingsSheet: View {
           }
         } footer: { Text("备份是 JSON 文件，和网页版通用。") }
         Section {
-          NavigationLink { ChangePasswordView() } label: { Label("修改主密码", systemImage: "lock.rotation") }
+          NavigationLink { ChangePasswordView() } label: { Label("修改密码", systemImage: "lock.rotation") }
           Button { store.clearOnLock(); Vault.shared.lock(); NotificationCenter.default.post(name: .accountVaultLocked, object: nil) } label: {
             Label("立即锁定", systemImage: "lock.fill")
           }
-        } footer: { Text("数据在主密码解锁后才可读取，锁定后内存中的明文会立即清空。") }
+        } footer: { Text("数据在密码解锁后才可读取，锁定后内存中的明文会立即清空。") }
         Section {
           Button { if let s = Vault.shared.exportEncrypted() { encDoc = EncBackupDoc(data: Data(s.utf8)); encExporting = true } } label: {
             Label("导出加密备份", systemImage: "square.and.arrow.up.on.square")
           }
           Button { encImporting = true } label: { Label("导入加密备份", systemImage: "square.and.arrow.down.on.square") }
-        } footer: { Text("加密备份用主密码加密，只有账号仓库能解开。") }
+        } footer: { Text("加密备份用密码加密，只有账号仓库能解开。") }
         Section {
           Button(role: .destructive) { askWipe = true } label: { Label("清空全部数据", systemImage: "trash") }
         }

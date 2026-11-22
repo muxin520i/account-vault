@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 账号仓库 · 解锁门
+/// 账号仓库 · 解锁门（背景图 + 密码）
 struct UnlockView: View {
   @StateObject private var vault = Vault.shared
   @State private var pass = ""
@@ -11,23 +11,43 @@ struct UnlockView: View {
 
   private var setup: Bool { vault.state == .needSetup }
 
+  // 从 App bundle 读取背景图（workflow 会把 unlock-bg.jpg 拷进 .app 根目录）
+  private var bgImage: UIImage? {
+    if let url = Bundle.main.url(forResource: "unlock-bg", withExtension: "jpg"),
+       let img = UIImage(contentsOfFile: url.path) { return img }
+    return UIImage(named: "unlock-bg")
+  }
+
   var body: some View {
     ZStack {
-      Color.black.ignoresSafeArea()
+      // 背景图，撑满铺满
+      if let img = bgImage {
+        Image(uiImage: img)
+          .resizable()
+          .scaledToFill()
+          .frame(width: UIScreen.main.bounds.width, height: UIScreen.main.bounds.height)
+          .clipped()
+          .ignoresSafeArea()
+      } else {
+        Color.black.ignoresSafeArea()
+      }
+      // 半透明遮罩，保证文字与输入框可读
+      Color.black.opacity(0.42).ignoresSafeArea()
+
       VStack(spacing: 14) {
         Image(uiImage: UIImage(named: "AppIcon-512") ?? UIImage())
           .resizable().frame(width: 76, height: 76).cornerRadius(18)
-        Image(systemName: "lock.fill").font(.system(size: 28)).foregroundColor(.accentColor)
-        Text(setup ? "设置主密码" : "解锁账号仓库")
+        Image(systemName: "lock.fill").font(.system(size: 28)).foregroundColor(.white)
+        Text(setup ? "设置密码" : "解锁账号仓库")
           .font(.title2.bold()).foregroundColor(.white)
-        Text(setup ? "这个密码用来加密你保存在本机的数据，忘了无法找回。" : "输入主密码以解密你的数据")
-          .font(.footnote).foregroundColor(.gray).multilineTextAlignment(.center)
+        Text(setup ? "这个密码用来加密你保存在本机的数据，忘了无法找回。" : "输入密码以解密你的数据")
+          .font(.footnote).foregroundColor(Color.white.opacity(0.85)).multilineTextAlignment(.center)
           .padding(.horizontal, 32)
 
-        SecureField("主密码（至少 4 位）", text: $pass)
+        SecureField(setup ? "密码（至少 4 位）" : "密码", text: $pass)
           .textFieldStyle(.roundedBorder).padding(.horizontal, 40)
         if setup {
-          SecureField("再次输入主密码", text: $pass2)
+          SecureField("再次输入密码", text: $pass2)
             .textFieldStyle(.roundedBorder).padding(.horizontal, 40)
         }
         if !err.isEmpty { Text(err).font(.footnote).foregroundColor(.red) }
@@ -43,13 +63,13 @@ struct UnlockView: View {
   }
 
   private func submit() {
-    if pass.isEmpty { err = "请输入主密码"; return }
-    if pass.count < 4 { err = "主密码至少 4 位"; return }
+    if pass.isEmpty { err = "请输入密码"; return }
+    if pass.count < 4 { err = "密码至少 4 位"; return }
     if setup {
       if pass != pass2 { err = "两次输入不一致"; return }
       if vault.create(pass) { onUnlocked(true) } else { err = "设置失败，请重试" }
     } else {
-      if vault.unlock(pass) { onUnlocked(false) } else { err = "主密码错误" }
+      if vault.unlock(pass) { onUnlocked(false) } else { err = "密码错误" }
     }
   }
 }

@@ -1,4 +1,4 @@
-name: 编译原生 Windows EXE
+name: 编译 Windows EXE（网页套壳便携版）
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: exe-native-build
+  group: exe-build
   cancel-in-progress: false
 
 jobs:
@@ -17,30 +17,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-node@v4
         with:
-          dotnet-version: '6.0.x'
+          node-version: '20'
 
-      - name: Build native WPF portable exe
-        working-directory: windows
-        run: |
-          dotnet publish AccountVault.csproj -c Release -r win-x64 `
-            --self-contained true -p:PublishSingleFile=true `
-            -p:IncludeNativeLibrariesForSelfExtract=true `
-            -p:UseWPF=true `
-            -o publish
-          Get-ChildItem publish/AccountVault.exe | Select-Object Name,Length
+      - name: Install dependencies
+        working-directory: electron
+        run: npm install
+
+      - name: Build portable EXE (electron-builder)
+        working-directory: electron
+        run: npx electron-builder --win portable --x64
 
       - name: Rename and stage
         run: |
-          Copy-Item windows/publish/AccountVault.exe account-vault-native-v2.1.exe
+          $exe = Get-ChildItem electron/dist/*.exe | Where-Object { $_.Name -notlike '*unpacked*' } | Select-Object -First 1
+          Write-Host "Built: $($exe.FullName) ($($exe.Length) bytes)"
+          Copy-Item $exe.FullName account-vault-web-v2.2.exe
 
       - name: Upload EXE to Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.1
-          name: 账号仓库 真原生版 v2.1（深色现代界面）
-          files: account-vault-native-v2.1.exe
+          tag_name: v2.2
+          name: 账号仓库 v2.2（APK/IPA 背景图 + 修复解锁 + EXE 网页套壳）
+          files: account-vault-web-v2.2.exe
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

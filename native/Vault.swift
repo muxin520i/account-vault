@@ -56,8 +56,9 @@ final class Vault: ObservableObject {
     let salt = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
     let k = derive(password, salt)
     let saltB64 = salt.base64EncodedString()
-    let piv = Data((0..<12).map { _ in UInt8.random(in: 0...255) })
     let pbox = try! AES.GCM.seal(Data(probe.utf8), using: k)
+    // 关键：probeIv 必须等于本次加密真实使用的 nonce，否则解锁时解密失败
+    let piv = pbox.nonce.withUnsafeBytes { Data($0) }
     let pct = pbox.ciphertext + pbox.tag
     let meta = Meta(salt: saltB64, probeIv: piv.base64EncodedString(), probeCt: pct.base64EncodedString())
     try? JSONEncoder().encode(meta).write(to: metaURL, options: .atomic)
@@ -73,27 +74,47 @@ final class Vault: ObservableObject {
   }
 
   func unlock(_ password: String) -> Bool {
-    guard let m = readMeta(), let salt = Data(base64Encoded: m.salt),
-          let piv = Data(base64Encoded: m.probeIv), let pct = Data(base64Encoded: m.probeCt), pct.count > 16 else { return false }
+    guard let m = readMeta(), let salt = Data(base64Encoded: m.salt) else { return false }
     let k = derive(password, salt)
-    do {
-      let box = try AES.GCM.SealedBox(nonce: AES.GCM.Nonce(data: piv), ciphertext: pct.prefix(pct.count - 16), tag: pct.suffix(16))
-      let p = try AES.GCM.open(box, using: k)
-      guard String(data: p, encoding: .utf8) == probe else { return false }
-    } catch { return false }
+    var verified = false
+    if let piv = Data(base64Encoded: m.probeIv), let pct = Data(base64Encoded: m.probeCt), pct.count > 16 {
+      do {
+        let box = try AES.GCM.SealedBox(nonce: AES.GCM.Nonce(data: piv), ciphertext: pct.prefix(pct.count - 16), tag: pct.suffix(16))
+        verified = (String(data: try AES.GCM.open(box, using: k), encoding: .utf8) == probe)
+      } catch { verified = false }
+    }
+    // 兼容旧版：早期版本把 probeIv 存成了随机值（与加密 nonce 不符）。
+    // 若 probe 校验失败，直接用密码尝试解开数据文件；解开即证明密码正确，并重写正确的 probe。
+    if !verified, let text = try? String(contentsOf: dataURL, encoding: .utf8), (try? openEnv(text, k)) != nil {
+      verified = true
+      repairProbe(k, saltB64: m.salt)
+    }
+    guard verified else { return false }
     key = k
     state = .unlocked
     return true
   }
 
+  /// 重写验证头，修复旧版 probeIv 不匹配的问题
+  private func repairProbe(_ k: SymmetricKey, saltB64: String) {
+    let pbox = try! AES.GCM.seal(Data(probe.utf8), using: k)
+    let piv = pbox.nonce.withUnsafeBytes { Data($0) }
+    let pct = pbox.ciphertext + pbox.tag
+    let meta = Meta(salt: saltB64, probeIv: piv.base64EncodedString(), probeCt: pct.base64EncodedString())
+    try? JSONEncoder().encode(meta).write(to: metaURL, options: .atomic)
+  }
+
   func verify(_ password: String) -> Bool {
-    guard let m = readMeta(), let salt = Data(base64Encoded: m.salt),
-          let piv = Data(base64Encoded: m.probeIv), let pct = Data(base64Encoded: m.probeCt), pct.count > 16 else { return false }
+    guard let m = readMeta(), let salt = Data(base64Encoded: m.salt) else { return false }
     let k = derive(password, salt)
-    do {
-      let box = try AES.GCM.SealedBox(nonce: AES.GCM.Nonce(data: piv), ciphertext: pct.prefix(pct.count - 16), tag: pct.suffix(16))
-      return String(data: try AES.GCM.open(box, using: k), encoding: .utf8) == probe
-    } catch { return false }
+    if let piv = Data(base64Encoded: m.probeIv), let pct = Data(base64Encoded: m.probeCt), pct.count > 16 {
+      do {
+        let box = try AES.GCM.SealedBox(nonce: AES.GCM.Nonce(data: piv), ciphertext: pct.prefix(pct.count - 16), tag: pct.suffix(16))
+        if String(data: try AES.GCM.open(box, using: k), encoding: .utf8) == probe { return true }
+      } catch { /* 落到数据文件校验 */ }
+    }
+    if let text = try? String(contentsOf: dataURL, encoding: .utf8), (try? openEnv(text, k)) != nil { return true }
+    return false
   }
 
   func changePassword(_ old: String, _ new: String) -> Bool {
@@ -101,8 +122,9 @@ final class Vault: ObservableObject {
     let salt = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
     let k = derive(new, salt)
     let saltB64 = salt.base64EncodedString()
-    let piv = Data((0..<12).map { _ in UInt8.random(in: 0...255) })
     let pbox = try! AES.GCM.seal(Data(probe.utf8), using: k)
+    // 关键：probeIv 必须等于本次加密真实使用的 nonce，否则解锁时解密失败
+    let piv = pbox.nonce.withUnsafeBytes { Data($0) }
     let pct = pbox.ciphertext + pbox.tag
     let meta = Meta(salt: saltB64, probeIv: piv.base64EncodedString(), probeCt: pct.base64EncodedString())
     try? JSONEncoder().encode(meta).write(to: metaURL, options: .atomic)

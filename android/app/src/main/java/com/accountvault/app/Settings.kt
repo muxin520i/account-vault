@@ -176,15 +176,15 @@ fun SettingsMain(go: (String) -> Unit) {
           SettingRow(Icons.Outlined.PlaylistAdd, "载入示例") { Store.loadDemo() }
         }
       }
-      FormGroup(footer = "数据在主密码解锁后才可读取，锁定后内存中的明文会被立即清空。") {
-        SettingRow(Icons.Outlined.Lock, "修改主密码", chevron = true) { pwDialog = true }
+      FormGroup(footer = "数据在密码解锁后才可读取，锁定后内存中的明文会被立即清空。") {
+        SettingRow(Icons.Outlined.Lock, "修改密码", chevron = true) { pwDialog = true }
         Divider()
         SettingRow(Icons.Outlined.Lock, "立即锁定", chevron = true) {
           Store.clearOnLock(); Vault.lock(); Store.popAll()
           Store.onLocked?.invoke()
         }
       }
-      FormGroup(footer = "加密备份用主密码加密，只有账号仓库能解开。") {
+      FormGroup(footer = "加密备份用密码加密，只有账号仓库能解开。") {
         SettingRow(Icons.Outlined.Upload, "导出加密备份") { encExporter.launch("账号仓库-加密备份.avbackup") }
         Divider()
         SettingRow(Icons.Outlined.Download, "导入加密备份") { encImporter.launch(arrayOf("application/octet-stream", "text/plain")) }
@@ -206,7 +206,7 @@ fun SettingsMain(go: (String) -> Unit) {
   }
   if (pwDialog) ChangePasswordDialog({ pwDialog = false }) { ok ->
     pwDialog = false
-    Store.show(if (ok) "主密码已修改" else "修改失败：当前密码错误")
+    Store.show(if (ok) "密码已修改" else "修改失败：当前密码错误")
   }
 }
 
@@ -218,19 +218,19 @@ private fun ChangePasswordDialog(onDismiss: () -> Unit, onDone: (Boolean) -> Uni
   var err by remember { mutableStateOf("") }
   androidx.compose.material3.AlertDialog(
     onDismissRequest = onDismiss,
-    title = { T("修改主密码", 18f, FontWeight.SemiBold) },
+    title = { T("修改密码", 18f, FontWeight.SemiBold) },
     text = {
       Column {
-        SecretField(old, { old = it; err = "" }, "当前主密码")
-        SecretField(nw, { nw = it; err = "" }, "新主密码（至少 4 位）")
-        SecretField(nw2, { nw2 = it; err = "" }, "再次输入新主密码")
+        SecretField(old, { old = it; err = "" }, "当前密码")
+        SecretField(nw, { nw = it; err = "" }, "新密码（至少 4 位）")
+        SecretField(nw2, { nw2 = it; err = "" }, "再次输入新密码")
         if (err.isNotEmpty()) T(err, 13f, color = pal.red)
       }
     },
     confirmButton = {
       androidx.compose.material3.TextButton(onClick = {
         when {
-          nw.length < 4 -> err = "新主密码至少 4 位"
+          nw.length < 4 -> err = "新密码至少 4 位"
           nw != nw2 -> err = "两次输入不一致"
           else -> onDone(Vault.changePassword(old, nw))
         }
