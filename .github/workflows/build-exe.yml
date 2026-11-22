@@ -39,8 +39,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v2.6
-          name: 账号仓库 v2.6（删启动开屏图与示例数据弹窗）
+          name: 账号仓库 v2.6（删开屏图与示例弹窗 · EXE 修复加密同步）
           files: account-vault-web-v2.6.exe
           fail_on_unmatched_files: true
+          overwrite_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

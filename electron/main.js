@@ -60,14 +60,28 @@ app.whenReady().then(() => {
     }
   });
 
-  // 彻底禁止任何外部网络请求：拦截所有非本地 URL（图标已本地化，同步功能由用户在界面控制）
+  // 精确白名单：只放行加密同步 API 与 App Store 图标搜索，其余外部请求一律掐断。
+  // 同步的明文永不外传——传的是用同步密码加密后的密文，存到用户自己的私有 gist。
+  const ALLOW_HOSTS = new Set([
+    'gitee.com',            // Gitee API + gist raw 文件
+    'api.github.com',       // GitHub API
+    'gist.githubusercontent.com', // GitHub gist raw 文件
+    'raw.githubusercontent.com',
+    'gist.github.com',
+    'itunes.apple.com',     // App Store 图标搜索
+  ]);
   session.defaultSession.webRequest.onBeforeRequest((details, cb) => {
     const url = details.url;
     if (url.startsWith(ORIGIN) || url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('devtools:')) {
-      cb({ cancel: false });
-    } else {
-      cb({ cancel: true }); // 掐断一切外传
+      return cb({ cancel: false });
     }
+    try {
+      const u = new URL(url);
+      if (u.protocol === 'https:' && ALLOW_HOSTS.has(u.hostname)) {
+        return cb({ cancel: false });
+      }
+    } catch (e) { /* 非法 URL，走掐断 */ }
+    cb({ cancel: true }); // 掐断其余一切外传
   });
 
   createWindow();
