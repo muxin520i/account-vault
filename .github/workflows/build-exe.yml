@@ -21,25 +21,26 @@ jobs:
         with:
           dotnet-version: '6.0.x'
 
-      - name: Build native WinForms portable exe
+      - name: Build native WPF portable exe
         working-directory: windows
         run: |
           dotnet publish AccountVault.csproj -c Release -r win-x64 `
             --self-contained true -p:PublishSingleFile=true `
             -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:UseWPF=true `
             -o publish
           Get-ChildItem publish/AccountVault.exe | Select-Object Name,Length
 
       - name: Rename and stage
         run: |
-          Copy-Item windows/publish/AccountVault.exe account-vault-native-v2.0.exe
+          Copy-Item windows/publish/AccountVault.exe account-vault-native-v2.1.exe
 
       - name: Upload EXE to Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.0
-          name: 账号仓库 真原生版 v2.0
-          files: account-vault-native-v2.0.exe
+          tag_name: v2.1
+          name: 账号仓库 真原生版 v2.1（深色现代界面）
+          files: account-vault-native-v2.1.exe
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

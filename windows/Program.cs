@@ -1,5 +1,5 @@
 using System;
-using System.Windows.Forms;
+using System.Windows;
 
 namespace AccountVault
 {
@@ -8,29 +8,18 @@ namespace AccountVault
         [STAThread]
         static void Main()
         {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.SetHighDpiMode(HighDpiMode.SystemAware);
+            var app = new Application();
+            app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
-            if (!Vault.IsSetup)
-            {
-                using var setup = new PasswordDialog(true);
-                if (setup.ShowDialog() != DialogResult.OK) return;
-                Vault.Create(setup.Password);
-            }
-            else
-            {
-                using var unlock = new PasswordDialog(false);
-                if (unlock.ShowDialog() != DialogResult.OK) return;
-                if (!Vault.Unlock(unlock.Password))
-                {
-                    MessageBox.Show("主密码错误，无法解锁。", "账号仓库", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
-            }
+            // 首次：设置主密码；之后：解锁。成功后数据已解密存入 gate.Data
+            var gate = new UnlockWindow();
+            if (gate.ShowDialog() != true) { app.Shutdown(); return; }
 
-            Application.Run(new MainForm());
-            Vault.Lock();
+            var main = new MainWindow(gate.Data);
+            app.MainWindow = main;
+            main.Closed += (s, e) => { Vault.Lock(); app.Shutdown(); };
+            main.Show();
+            app.Run();
         }
     }
 }
