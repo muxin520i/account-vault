@@ -44,7 +44,6 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.CloudSync
 import androidx.compose.material.icons.outlined.Contrast
-import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.PlaylistAdd
@@ -118,7 +117,6 @@ fun SettingsSheet() {
 @Composable
 fun SettingsMain(go: (String) -> Unit) {
   val ctx = LocalContext.current
-  var askWipe by remember { mutableStateOf(false) }
   var themeMenu by remember { mutableStateOf(false) }
   var pwDialog by remember { mutableStateOf(false) }
   var encExporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
@@ -189,20 +187,11 @@ fun SettingsMain(go: (String) -> Unit) {
         Divider()
         SettingRow(Icons.Outlined.Download, "导入加密备份") { encImporter.launch(arrayOf("application/octet-stream", "text/plain")) }
       }
-      FormGroup {
-        SettingRow(Icons.Outlined.DeleteOutline, "清空全部数据", color = pal.red) { askWipe = true }
-      }
       Column(Modifier.fillMaxWidth().padding(top = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         T("账号仓库", 15f, FontWeight.SemiBold)
         T("不保存任何密码 · 数据只在本机和你自己的私有 Gist", 12f, color = pal.secondary, modifier = Modifier.padding(top = 6.dp), align = TextAlign.Center)
       }
     }
-  }
-  if (askWipe) Confirm("清空全部数据？",
-    if (Sync.on) "所有邮箱、手机号和网站记录都会删除，开了同步的其他设备也会一起清空。建议先导出备份。" else "所有邮箱、手机号和网站记录都会从这台设备上删除。建议先导出备份。",
-    "清空全部数据", { askWipe = false }) {
-    Store.mutate("已清空") { it.copy(identities = emptyList(), accounts = emptyList()) }
-    Store.setKind(Store.kind); Store.pop()
   }
   if (pwDialog) ChangePasswordDialog({ pwDialog = false }) { ok ->
     pwDialog = false

@@ -3,7 +3,7 @@
   position: fixed; inset: 0; z-index: 9999;
   display: flex; align-items: center; justify-content: center;
   padding: 24px; box-sizing: border-box;
-  background: radial-gradient(120% 120% at 50% 0%, #1c2140 0%, #0b0c14 60%, #06070c 100%);
+  background: linear-gradient(rgba(6,7,12,.46), rgba(6,7,12,.58)), url('unlock-bg.jpg') center center / cover no-repeat;
   color: #f2f3f8;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }

@@ -723,3 +723,27 @@ html[data-theme=light] .ord::after{box-shadow:0 14px 30px rgba(0,0,0,.16),0 0 0 
 /* the side-slide of a tab view (translateX ±26px) counted as horizontal overflow; on mobile Chrome that widened
    the layout viewport for the length of the animation and forced two full-page relayouts per tab switch */
 main{overflow-x:clip}
+
+/* ===== v2.3 右侧竖排 4 键导航（卡包/全部App/关系图/设置） ===== */
+.tabbar{
+  left:auto!important; right:14px; top:50%!important; bottom:auto!important;
+  transform:translateY(-50%)!important;
+  display:flex!important; flex-direction:column; gap:6px;
+  width:60px; padding:6px; border-radius:22px;
+}
+.tabbar button{
+  width:100%; height:48px; padding:0!important; flex:0 0 48px;
+  flex-direction:column; gap:2px; justify-content:center; border-radius:14px;
+}
+.tabbar button svg{width:23px;height:23px}
+.tab-thumb{
+  top:6px!important; bottom:auto!important; left:6px!important; right:6px!important;
+  width:auto!important; height:48px;
+}
+.menu{
+  position:fixed!important; right:84px; top:50%;
+  transform-origin:right center!important;
+  transform:translateY(-50%) scale(.5)!important;
+}
+.menu.open{transform:translateY(-50%) scale(1)!important}
+main{padding-bottom:24px!important}

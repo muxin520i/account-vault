@@ -27,7 +27,6 @@ struct SettingsSheet: View {
   @Environment(\.dismiss) var dismiss
   @State private var exporting = false
   @State private var importing = false
-  @State private var askWipe = false
   @State private var doc = BackupDoc(data: Data())
   @State private var encExporting = false
   @State private var encImporting = false
@@ -74,9 +73,6 @@ struct SettingsSheet: View {
           Button { encImporting = true } label: { Label("导入加密备份", systemImage: "square.and.arrow.down.on.square") }
         } footer: { Text("加密备份用密码加密，只有账号仓库能解开。") }
         Section {
-          Button(role: .destructive) { askWipe = true } label: { Label("清空全部数据", systemImage: "trash") }
-        }
-        Section {
           VStack(spacing: 6) {
             Text("账号仓库").font(.system(size: 15, weight: .semibold))
             Text("不保存任何密码 · 数据只在本机和你自己的私有 Gist").font(.system(size: 12)).foregroundStyle(.secondary)
@@ -104,12 +100,6 @@ struct SettingsSheet: View {
           store.loadFromVault(); store.show("加密备份已导入")
         } else { store.show("这不是有效的账号仓库加密备份") }
       }
-      .confirmationDialog("清空全部数据？", isPresented: $askWipe, titleVisibility: .visible) {
-        Button("清空全部数据", role: .destructive) {
-          store.mutate("已清空") { s in s.identities = []; s.accounts = [] }
-          store.setKind(store.kind); dismiss()
-        }
-      } message: { Text(sync.on ? "所有邮箱、手机号和网站记录都会删除，开了同步的其他设备也会一起清空。建议先导出备份。" : "所有邮箱、手机号和网站记录都会从这台设备上删除。建议先导出备份。") }
     }
   }
   var syncStatus: String {

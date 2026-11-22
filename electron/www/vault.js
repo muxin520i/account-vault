@@ -18,6 +18,10 @@
  *   Vault.setItem(k, v)       -> void              同步写（异步加密落盘）
  *   Vault.removeItem(k)       -> void
  *   Vault.changePassword(old,new) -> Promise<boolean>
+ *   Vault.enableAutoUnlock()  -> Promise<boolean>  开启免密启动（保存会话密钥到本机）
+ *   Vault.disableAutoUnlock() -> void              关闭免密启动
+ *   Vault.hasAutoUnlock()     -> boolean           是否已开启
+ *   Vault.tryAutoUnlock()     -> Promise<boolean>  用保存的密钥自动恢复会话
  *   Vault.remainingMs()       -> number            距自动锁定剩余毫秒
  *   Vault.touch()             -> void              重置空闲计时
  *
@@ -29,6 +33,7 @@
 
   const META_KEY = 'atlas.vault.meta';   // 派生参数（盐、验证头），不含明文
   const DATA_KEY = 'atlas.vault.data';   // 加密后的数据块
+  const QUICK_KEY = 'atlas.vault.quick'; // 免密启动：导出后的原始 AES 密钥（仅本机）
   const LEGACY_KEYS = ['atlas.v1', 'atlas.sync', 'atlas.custom']; // 加固前的明文键，迁移后清除
   const SENSITIVE = new Set(['atlas.v1', 'atlas.sync', 'atlas.custom']); // 需要加密的键
   const IDLE_MS = 5 * 60 * 1000;          // 空闲 5 分钟自动锁定
@@ -57,7 +62,7 @@
     const base = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
     return crypto.subtle.deriveKey(
       { name: 'PBKDF2', salt, iterations: ITER, hash: 'SHA-256' },
-      base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+      base, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']
     );
   }
 
@@ -163,8 +168,44 @@
     localStorage.setItem(META_KEY, JSON.stringify({ v: 1, salt: saltB64, piv: b64(piv), probe: b64(probe), iter: ITER }));
     AES_KEY = key;
     await persist();
+    // 免密启动开启时，同步刷新保存的会话密钥，避免旧密钥失效导致无法免密解锁
+    if (hasAutoUnlock()) await enableAutoUnlock();
     emit();
     return true;
+  }
+
+  // ---- 免密启动：把解锁后的会话密钥保存到本机，下次打开自动恢复 ----
+  // 说明：保存的是 256 位 AES 原始密钥（非用户密码本身），仅存于本机 localStorage。
+  // 开启后任何能访问本机数据的人都可绕过密码直接查看，属于便利性与安全的取舍。
+  async function enableAutoUnlock() {
+    if (!hasCrypto || !AES_KEY) return false;
+    try {
+      const raw = await crypto.subtle.exportKey('raw', AES_KEY);
+      localStorage.setItem(QUICK_KEY, b64(raw));
+      return true;
+    } catch (_) { return false; }
+  }
+  function disableAutoUnlock() { localStorage.removeItem(QUICK_KEY); }
+  function hasAutoUnlock() { return !!localStorage.getItem(QUICK_KEY); }
+  async function tryAutoUnlock() {
+    if (!hasCrypto) return false;
+    const rawB64 = localStorage.getItem(QUICK_KEY);
+    if (!rawB64) return false;
+    try {
+      const raw = unb64(rawB64);
+      const key = await crypto.subtle.importKey('raw', raw, 'AES-GCM', true, ['encrypt', 'decrypt']);
+      const blob = (() => { try { return JSON.parse(localStorage.getItem(DATA_KEY)); } catch { return null; } })();
+      let data = {};
+      if (blob && blob.iv && blob.ct) {
+        const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(blob.iv) }, key, unb64(blob.ct));
+        data = JSON.parse(dec.decode(pt));
+      }
+      AES_KEY = key;
+      cache = data;
+      startIdle();
+      emit();
+      return true;
+    } catch (_) { disableAutoUnlock(); return false; }
   }
 
   function clearMemory() {
@@ -234,6 +275,7 @@
   const Vault = {
     status, unlock, create, lock, changePassword, remainingMs, touch,
     exportEncrypted, importEncrypted,
+    enableAutoUnlock, disableAutoUnlock, hasAutoUnlock, tryAutoUnlock,
     getItem: readPlain, setItem: writePlain, removeItem: removePlain,
     onStatus: f => { listeners.add(f); return () => listeners.delete(f); },
     get available() { return hasCrypto; },

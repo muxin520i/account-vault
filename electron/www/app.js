@@ -506,7 +506,7 @@
     const from = TABS.indexOf(ui.tab); ui.tab = tab;
     const idx = TABS.indexOf(tab), th = $('#tabThumb');
     $$('#tabbar button').forEach((b, k) => b.classList.toggle('active', k === idx));
-    th.style.transform = `translateX(${idx * 100}%)`;
+    th.style.transform = `translateY(${idx * 54}px)`;
     if (!calm()) th.animate([{ scale: '1 1' }, { scale: `${1 + .16 * Math.abs(idx - from)} 1.14`, offset: .35 }, { scale: '.97 .96', offset: .7 }, { scale: '1 1' }], { duration: 620, easing: 'cubic-bezier(.32,.72,0,1)' });
     $$('.view').forEach(v => { const on = v.dataset.view === tab; v.classList.toggle('active', on); v.classList.toggle('from-r', on && idx > from); v.classList.toggle('from-l', on && idx < from); });
     $('#topTitle').textContent = { home: '账号', sites: '网站与 App', graph: '关系图' }[tab];
@@ -1085,7 +1085,7 @@
       if (d.act === 'export') exportSheet();
       if (d.act === 'import') $('#fileInput').click();
       if (d.act === 'demo') { snap(); state = demo(); save(); setKind('email'); render(); undoToast('已载入示例'); }
-      if (d.act === 'wipe') confirmSheet('清空全部数据？', Sync.on ? '所有邮箱、手机号和网站记录都会删除，开了同步的其他设备也会一起清空。建议先导出备份。' : '所有邮箱、手机号和网站记录都会从这台设备上删除。建议先导出备份。', '清空全部数据', () => { snap(); state = { identities: [], accounts: [] }; save(); render(); undoToast('已清空'); });
+      if (d.act === 'quickunlock') toggleQuickUnlock();
       return;
     }
     if (t.closest('#tabbar')) return setTab(d.tab);
@@ -1484,6 +1484,23 @@
       };
     }, 0);
   }
+  // ---------- 免密启动开关 ----------
+  function refreshQuickUnlockLabel() {
+    const el = $('#menu [data-act="quickunlock"] small');
+    if (el) el.textContent = Vault.hasAutoUnlock() ? '已开启' : '已关闭';
+  }
+  async function toggleQuickUnlock() {
+    if (Vault.hasAutoUnlock()) {
+      Vault.disableAutoUnlock();
+      refreshQuickUnlockLabel();
+      toast('已关闭免密启动，下次打开需输入密码');
+    } else {
+      const ok = await Vault.enableAutoUnlock();
+      refreshQuickUnlockLabel();
+      toast(ok ? '已开启免密启动，下次打开无需输入密码' : '开启失败，请在解锁状态下重试');
+    }
+  }
+
   Sync.listeners.add(() => {
     const el = $('#syncState'); if (el) { el.textContent = syncLine(); el.className = 'sync-state ' + Sync.status.state; }
     const m = $('#menu [data-act="sync"] small'); if (m) m.textContent = syncLine();
@@ -1493,6 +1510,7 @@
   // ---------- boot ----------
   let booted = false;
   function startApp() {
+    refreshQuickUnlockLabel();
     // 解锁后重新读取 state（模块加载时因锁定读到的是 null）
     state = null;
     try { state = JSON.parse(Vault.getItem(KEY)); } catch (_) {}
@@ -1571,6 +1589,12 @@
     g.className = 'vault-gate';
     g.innerHTML = `<div class="vault-card"><div class="vault-mark"><svg viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 9v5M12 17h.01"/></svg></div><h1>无法安全启动</h1><p class="vault-sub">当前环境不提供加密能力（crypto.subtle）。请通过 <b>http://localhost</b> 或 <b>https</b> 打开本页面后重试，不要用 file:// 直接双击。</p></div>`;
     document.body.appendChild(g);
-  } else if (Vault.status() === 'unlocked') startApp();
-  else showGate(Vault.status() === 'new' ? 'setup' : 'unlock', startApp);
+  } else if (Vault.status() === 'unlocked') { refreshQuickUnlockLabel(); startApp(); }
+  else if (Vault.hasAutoUnlock()) {
+    // 免密启动：用本机保存的会话密钥自动恢复，失败则回退到密码解锁门
+    Vault.tryAutoUnlock().then(ok => {
+      if (ok) { refreshQuickUnlockLabel(); startApp(); }
+      else showGate('unlock', startApp);
+    });
+  } else showGate(Vault.status() === 'new' ? 'setup' : 'unlock', startApp);
 })();
