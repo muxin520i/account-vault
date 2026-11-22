@@ -29,8 +29,8 @@ jobs:
           cp -R icons "$APP/icons"
           cp -R native/lproj/*.lproj "$APP/"
           for f in "$APP"/*.lproj/InfoPlist.strings; do plutil -convert binary1 "$f"; done
-          BUILD=26
-          sed -e "s/__VERSION__/2.7/" -e "s/__BUILD__/$BUILD/" native/Info.plist > "$APP/Info.plist"
+          BUILD=27
+          sed -e "s/__VERSION__/2.8/" -e "s/__BUILD__/$BUILD/" native/Info.plist > "$APP/Info.plist"
           xcrun actool Assets.xcassets --compile "$APP" --platform iphoneos --minimum-deployment-target 17.0 \
             --app-icon AppIcon --output-partial-info-plist build/partial.plist --target-device iphone
           /usr/libexec/PlistBuddy -c "Merge build/partial.plist" "$APP/Info.plist"
@@ -46,8 +46,8 @@ jobs:
       - name: Upload IPA to Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.7
-          name: 账号仓库 v2.7（顶栏新增一键同步按钮）
+          tag_name: v2.8
+          name: 账号仓库 v2.8（导航改版：首页/全部账号/设置，删关系图）
           files: AccountVault-unsigned.ipa
           fail_on_unmatched_files: true
         env:
