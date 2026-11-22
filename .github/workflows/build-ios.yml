@@ -1,0 +1,83 @@
+name: 编译 iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'ios/**'
+      - 'www/**'
+      - '.github/workflows/build-ios.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-ios:
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 同步 Web 资源到 iOS 工程
+        run: npx cap sync ios --no-copy
+
+      - name: 安装 CocoaPods
+        run: |
+          cd ios/App
+          pod install --repo-update
+
+      - name: 列出可用的 scheme
+        run: |
+          cd ios/App
+          xcodebuild -list -workspace App.xcworkspace
+
+      - name: 编译归档（Ad-hoc 签名）
+        run: |
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$PWD/build/App.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            clean archive
+
+      - name: 导出未签名 IPA
+        run: |
+          cd ios/App
+          mkdir -p build/ipa/Payload
+          cp -R build/App.xcarchive/Products/Applications/App.app build/ipa/Payload/
+          cd build/ipa
+          zip -qry "../../AtlasVault-unsigned.ipa" Payload
+          cd ../..
+          ls -lh AtlasVault-unsigned.ipa
+          cp AtlasVault-unsigned.ipa "$GITHUB_WORKSPACE/"
+
+      - name: 上传 IPA 到 Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0
+          name: 账号星图 加固版 v1.0
+          body: |
+            ## 账号星图·加固版 三端安装包
+
+            端到端加密（主密码 + AES-256-GCM）的账号密码本地管理工具。
+
+            - **Android**：`账号星图-加固版-v1.0.apk`（包名 com.atlasvault.app，可覆盖升级）
+            - **Windows**：`账号星图-加固版-便携版.exe`（免安装便携版）
+            - **iOS**：`AtlasVault-unsigned.ipa`（未签名，请用你自己的证书签名安装）
+
+            主密码忘记无法找回，请妥善保管。
+          files: |
+            AtlasVault-unsigned.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

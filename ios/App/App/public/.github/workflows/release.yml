@@ -1,0 +1,94 @@
+name: Release
+# One release per version: push a tag v2.1, v2.2, ... (or run this by hand with a version).
+# It builds the APK and the IPA from that commit and publishes ONE release "账号星图 2.1"
+# carrying Atlas.apk + Atlas.ipa, marked latest. Rules: RELEASING.md.
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+', 'v[0-9]+.[0-9]+.[0-9]+']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without the v, e.g. 2.1 (the tag v2.1 is created on main if it does not exist)'
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        run: |
+          V="${{ inputs.version }}"; [ -n "$V" ] || V="${GITHUB_REF_NAME#v}"
+          echo "$V" | grep -Eq '^[0-9]+\.[0-9]+(\.[0-9]+)?$' || { echo "::error::version must look like 2.1 or 2.1.1, got '$V'"; exit 1; }
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+  android:
+    needs: meta
+    uses: ./.github/workflows/android.yml
+    with:
+      version: ${{ needs.meta.outputs.version }}
+    secrets: inherit
+
+  ios:
+    needs: meta
+    uses: ./.github/workflows/ios.yml
+    with:
+      version: ${{ needs.meta.outputs.version }}
+
+  publish:
+    needs: [meta, android, ios]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: Atlas-apk
+      - uses: actions/download-artifact@v4
+        with:
+          name: Atlas-ipa
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          R: ${{ github.repository }}
+          V: ${{ needs.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          TAG="v$V"
+          ls -la Atlas.apk Atlas.ipa
+          # notes: the commits since the previous version tag, newest first, CI/docs noise left out
+          PREV=$(git tag --list 'v[0-9]*' --sort=-v:refname | grep -vx "$TAG" | head -1 || true)
+          RANGE=${PREV:+$PREV..}HEAD
+          CHANGES=$(git log --no-merges --format='- %s' $RANGE | grep -viE '^- (ci|docs?|readme|release)[:( ]' | head -40 || true)
+          [ -n "$CHANGES" ] || CHANGES="- 小改进与修复"
+          {
+            echo "## 更新内容"
+            echo
+            echo "$CHANGES"
+            echo
+            echo "## 下载"
+            echo
+            echo "- **Atlas.apk**：安卓（Android 8.0+），直接安装；覆盖安装，数据保留。"
+            echo "- **Atlas.ipa**：iPhone（iOS 17+），未签名，用 SideStore / 爱思助手 / Sideloadly / 全能签自签后安装。"
+            echo "- 网页版：https://huichen.dev/account-atlas/"
+            [ -n "$PREV" ] && { echo; echo "完整改动：https://github.com/$R/compare/$PREV...$TAG"; }
+          } > notes.md
+          cat notes.md
+          if gh release view "$TAG" --repo "$R" >/dev/null 2>&1; then
+            gh release upload "$TAG" Atlas.apk Atlas.ipa --repo "$R" --clobber
+            gh release edit "$TAG" --repo "$R" --title "账号星图 $V" --notes-file notes.md --latest
+          else
+            gh release create "$TAG" Atlas.apk Atlas.ipa --repo "$R" --target "${{ github.sha }}" \
+              --title "账号星图 $V" --notes-file notes.md --latest
+          fi
+          gh release view "$TAG" --repo "$R" --json url,assets -q '.url, (.assets[].name)'
