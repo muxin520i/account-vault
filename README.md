@@ -1,32 +1,32 @@
-# 账号仓库·加固版
+# 账号仓库 · 加固版（真原生三端）
 
-端到端加密的账号密码本地管理工具（Android / Windows / iOS 三端）。
+端到端加密的账号密码本地管理工具。三端均为**真原生实现**（非网页套壳），数据在主密码解锁后才可读取，本地落盘为 AES-256-GCM 密文。
 
-## 安全特性
+## 三端技术
 
-- 主密码解锁，PBKDF2-SHA256（31 万次）派生密钥
-- AES-256-GCM 加密本地数据，明文零残留
-- 112 个本地图标，零外部网络请求（不泄露网站域名）
-- 空闲自动锁定、剪贴板 30 秒自动清除
-- 导出备份默认加密
+| 平台 | 技术 | 源码目录 | 编译 |
+|---|---|---|---|
+| Android | Kotlin + Jetpack Compose | `android/` | `build-apk.yml`（ubuntu） |
+| Windows | .NET 6 WinForms | `windows/` | `build-exe.yml`（windows） |
+| iOS | SwiftUI + CryptoKit | `native/` | `build-ios.yml`（macos，swiftc） |
+
+## 安全设计
+
+- 主密码经 PBKDF2-HMAC-SHA256（31 万次）派生密钥，AES-256-GCM 加密落盘
+- 明文仅在解锁期间存在于内存；锁定/退到后台立即清空
+- 验证头校验主密码正确性，密码错误无法解密
+- 支持修改主密码、导出/导入加密备份（备份密码即主密码）
+- 112 个网站图标全部本地内置，零外部网络请求
+- iOS 未签名 IPA，需自行用个人证书签名安装
 
 ## 下载
 
-到 [Releases](../../releases) 页面下载三端安装包：
+Releases：`https://github.com/muxin520i/account-vault/releases/tag/v2.0`
 
-- **Android**：`账号仓库-加固版-v1.0.apk`（包名 `com.atlasvault.app`，固定签名可覆盖升级）
-- **Windows**：`账号仓库-加固版-便携版.exe`（免安装，双击即用）
-- **iOS**：`AtlasVault-unsigned.ipa`（未签名，请用你自己的 Apple 证书签名安装）
+## 重新编译
 
-## 源码结构
+在 Actions 页面手动触发对应 workflow 即可，产物自动上传到 v2.0 Release。
 
-- `www/`：加固版网页内核（vault.js 加密层 + app.js）
-- `ios/`：Capacitor iOS Xcode 工程
-- `.github/workflows/build-ios.yml`：云端编译 IPA 的 Actions 配置
-- `downloads/`：APK 与 EXE 安装包
+## 说明
 
-## 重要提示
-
-主密码忘记无法找回。换设备请用应用内「加密备份」功能迁移。
-
-加固基于开源项目 [Ckxkx/account-atlas](https://github.com/Ckxkx/account-atlas)，已做本地加密与零外传改造。
+本项目基于开源项目 [Ckxkx/account-atlas](https://github.com/Ckxkx/account-atlas) 加固改造，真原生源码亦源自该项目（Android Compose / iOS SwiftUI），在其上增加本地加密保险层。

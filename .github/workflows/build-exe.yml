@@ -1,0 +1,45 @@
+name: 编译原生 Windows EXE
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: exe-native-build
+  cancel-in-progress: false
+
+jobs:
+  exe:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '6.0.x'
+
+      - name: Build native WinForms portable exe
+        working-directory: windows
+        run: |
+          dotnet publish AccountVault.csproj -c Release -r win-x64 `
+            --self-contained true -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -o publish
+          Get-ChildItem publish/AccountVault.exe | Select-Object Name,Length
+
+      - name: Rename and stage
+        run: |
+          Copy-Item windows/publish/AccountVault.exe account-vault-native-v2.0.exe
+
+      - name: Upload EXE to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v2.0
+          name: 账号仓库 真原生版 v2.0
+          files: account-vault-native-v2.0.exe
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

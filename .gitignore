@@ -1,0 +1,13 @@
+.git/
+build/
+.gradle/
+*.apk
+*.exe
+*.ipa
+*.jks
+*.keystore
+local.properties
+windows/publish/
+windows/bin/
+windows/obj/
+android/app/build/
