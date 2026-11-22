@@ -14,7 +14,6 @@ namespace AccountVault
         private readonly ComboBox _cat;
         private readonly CheckedListBox _ids;
         private readonly List<Identity> _identities;
-        private readonly Action<string> _copier;
 
         public AccountForm(Account src, List<Identity> identities)
         {
