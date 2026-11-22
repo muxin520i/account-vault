@@ -101,7 +101,7 @@ fun syncStatus(): String = when (Sync.state) {
 }
 
 @Composable
-fun SettingsSheet() {
+fun SettingsSheet(inTab: Boolean = false) {
   var page by remember { mutableStateOf("main") }
   AnimatedContent(page, transitionSpec = {
     if (targetState != "main") (slideInHorizontally(calm()) { it } + fadeIn()) togetherWith (slideOutHorizontally(calm()) { -it / 3 } + fadeOut())
@@ -110,13 +110,13 @@ fun SettingsSheet() {
     when (p) {
       "sync" -> SyncPage { page = "main" }
       "order" -> OrderPage { page = "main" }
-      else -> SettingsMain { page = it }
+      else -> SettingsMain(inTab, go = { page = it })
     }
   }
 }
 
 @Composable
-fun SettingsMain(go: (String) -> Unit) {
+fun SettingsMain(inTab: Boolean = false, go: (String) -> Unit) {
   val ctx = LocalContext.current
   var themeMenu by remember { mutableStateOf(false) }
   val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -130,7 +130,7 @@ fun SettingsMain(go: (String) -> Unit) {
     }
   }
   Column {
-    SheetBar(null, "设置", "完成") { Store.pop() }
+    SheetBar(null, "设置", if (inTab) null else "完成") { Store.pop() }
     FormScroll {
       FormGroup {
         SettingRow(Icons.Outlined.Cloud, "加密同步", trailing = { T(syncStatus(), 14f, color = pal.secondary) }, chevron = true) { go("sync") }

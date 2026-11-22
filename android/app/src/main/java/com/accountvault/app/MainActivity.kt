@@ -42,6 +42,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ViewCarousel
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -183,7 +184,7 @@ fun Shell(startTab: Int) {
             alpha = 0.35f + 0.65f * enter.value
             translationX = (1 - enter.value) * dir * with(d) { 28.dp.toPx() }
           }) {
-            when (k) { 0 -> WalletScreen(); 1 -> SitesScreen(); else -> MapScreen() }
+            when (k) { 0 -> WalletScreen(); 1 -> SitesScreen(); else -> SettingsSheet(inTab = true) }
           }
         }
       }
@@ -207,7 +208,7 @@ fun Glow() {
 
 @Composable
 fun TabBar(tab: Int, modifier: Modifier, onTab: (Int) -> Unit) {
-  val items = listOf(Triple("卡包", Icons.Filled.ViewCarousel, 0), Triple("全部 App", Icons.Filled.Apps, 1), Triple("关系图", Icons.Filled.AccountTree, 2))
+  val items = listOf(Triple("首页", Icons.Filled.ViewCarousel, 0), Triple("全部账号", Icons.Filled.Apps, 1), Triple("设置", Icons.Filled.Settings, 2))
   Box(modifier.fillMaxWidth().background(if (pal.dark) Color(0xE6121212) else Color(0xE6F9F9F9))) {
     Box(Modifier.fillMaxWidth().height(0.5.dp).background(pal.stroke))
     Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).height(56.dp)) {

@@ -106,8 +106,6 @@ fun TopButtons() {
         DropdownMenuItem({ androidx.compose.material3.Text("添加微信或 Apple 账号") }, { menu = false; Store.push(Route.NewIdentity("login")) }, leadingIcon = { Icon(Icons.Outlined.Key, null) })
       }
     }
-    Spacer(Modifier.width(8.dp))
-    RoundButton(onClick = { Store.push(Route.Settings) }) { Icon(Icons.Filled.MoreHoriz, "设置", Modifier.size(22.dp), tint = pal.accent) }
   }
 }
 

@@ -30,9 +30,9 @@ struct RootView: View {
 
   var body: some View {
     TabView(selection: Binding(get: { tab }, set: { t in dir = t >= tab ? 1 : -1; tab = t })) {
-      WalletView().tabEnter(0, tab: tab, dir: dir).tag(0).tabItem { Label("卡包", systemImage: "rectangle.stack.fill") }
-      SitesView().tabEnter(1, tab: tab, dir: dir).tag(1).tabItem { Label("全部 App", systemImage: "square.grid.2x2.fill") }
-      MapView().tabEnter(2, tab: tab, dir: dir).tag(2).tabItem { Label("关系图", systemImage: "point.3.connected.trianglepath.dotted") }
+      WalletView().tabEnter(0, tab: tab, dir: dir).tag(0).tabItem { Label("首页", systemImage: "rectangle.stack.fill") }
+      SitesView().tabEnter(1, tab: tab, dir: dir).tag(1).tabItem { Label("全部账号", systemImage: "square.grid.2x2.fill") }
+      SettingsSheet(inTab: true).tabEnter(2, tab: tab, dir: dir).tag(2).tabItem { Label("设置", systemImage: "gearshape.fill") }
     }
     .environment(\.selectedTab, tab)
     .sensoryFeedback(.selection, trigger: tab)

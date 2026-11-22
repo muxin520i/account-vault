@@ -13,6 +13,8 @@ struct SettingsSheet: View {
   @Environment(Store.self) var store
   @EnvironmentObject var sync: Sync
   @Environment(\.dismiss) var dismiss
+  /// true = 作为底部 tab 内嵌显示（不显示"完成"、导入后不 dismiss）；false = 作为 sheet 弹出
+  var inTab = false
   @State private var exporting = false
   @State private var importing = false
   @State private var doc = BackupDoc(data: Data())
@@ -63,14 +65,18 @@ struct SettingsSheet: View {
       }
       .tint(.accentColor)
       .navigationTitle("设置").navigationBarTitleDisplayMode(.inline)
-      .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() }.bold() } }
+      .toolbar {
+        if !inTab {
+          ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() }.bold() }
+        }
+      }
       .fileExporter(isPresented: $exporting, document: doc, contentType: .json, defaultFilename: "账号备份-\(Date().formatted(.iso8601.year().month().day()))") { r in
         if case .success = r { store.show("备份已导出") }
       }
       .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { r in
         guard case .success(let url) = r else { return }
         let ok = url.startAccessingSecurityScopedResource(); defer { if ok { url.stopAccessingSecurityScopedResource() } }
-        if let d = try? Data(contentsOf: url), store.importBackup(d) { dismiss() } else { store.show("这不是账号仓库的备份文件") }
+        if let d = try? Data(contentsOf: url), store.importBackup(d) { if !inTab { dismiss() } else { store.show("备份已导入") } } else { store.show("这不是账号仓库的备份文件") }
       }
     }
   }

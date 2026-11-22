@@ -124,7 +124,6 @@ struct TopButtons: ToolbarContent {
         Button { store.route = .newIdentity("phone") } label: { Label("添加手机号", systemImage: "simcard") }
         Button { store.route = .newIdentity("login") } label: { Label("添加微信或 Apple 账号", systemImage: "person.badge.key") }
       } label: { Image(systemName: "plus") }
-      Button { store.route = .settings } label: { Image(systemName: "ellipsis") }
     }
   }
 }
