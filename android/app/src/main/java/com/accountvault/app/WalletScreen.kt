@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Email
+import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.SimCard
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -94,6 +95,7 @@ fun TopButtons() {
         DropdownMenuItem({ androidx.compose.material3.Text("添加网站或 App") }, { menu = false; Store.push(Route.Picker(Store.active?.id)) }, leadingIcon = { Icon(Icons.Outlined.Apps, null) })
         DropdownMenuItem({ androidx.compose.material3.Text("添加邮箱") }, { menu = false; Store.push(Route.NewIdentity("email")) }, leadingIcon = { Icon(Icons.Outlined.Email, null) })
         DropdownMenuItem({ androidx.compose.material3.Text("添加手机号") }, { menu = false; Store.push(Route.NewIdentity("phone")) }, leadingIcon = { Icon(Icons.Outlined.SimCard, null) })
+        DropdownMenuItem({ androidx.compose.material3.Text("添加微信或 Apple 账号") }, { menu = false; Store.push(Route.NewIdentity("login")) }, leadingIcon = { Icon(Icons.Outlined.Key, null) })
       }
     }
     Spacer(Modifier.width(8.dp))
@@ -120,11 +122,13 @@ fun WalletScreen() {
   Column(Modifier.fillMaxSize().verticalScroll(s)) {
     TopButtons()
     val d = Store.data
-    val e = d.identities.count { it.type == "email" }; val p = d.identities.size - e; val a = d.accounts.size
-    LargeTitle("账号", if (d.identities.isEmpty() && a == 0) "先添加一个邮箱或手机号" else "$e 个邮箱、$p 个手机号，关联着 $a 个网站与 App")
+    val e = d.identities.count { it.type == "email" }; val p = d.identities.count { it.type == "phone" }
+    val l = d.identities.count { it.isLogin }; val a = d.accounts.size
+    LargeTitle("账号", if (d.identities.isEmpty() && a == 0) "先添加一个邮箱或手机号"
+      else "$e 个邮箱、$p 个手机号" + (if (l > 0) "、$l 个第三方登录" else "") + "，关联着 $a 个网站与 App")
     KindSwitch(Modifier.padding(horizontal = 20.dp).padding(top = 14.dp))
     AnimatedContent(Store.kind, transitionSpec = {
-      val from = if (targetState == "phone") 1 else -1
+      val from = if (kindRank(targetState) > kindRank(initialState)) 1 else -1
       (androidx.compose.animation.slideInHorizontally(calm()) { it / 3 * from } + fadeIn(calm())) togetherWith fadeOut(calm())
     }, label = "deck") { k -> Deck(k) }
     AppGrid(Modifier.padding(horizontal = 20.dp).padding(top = 22.dp))
@@ -137,17 +141,17 @@ fun WalletScreen() {
 fun KindSwitch(modifier: Modifier) {
   val hap = haptics()
   BoxWithConstraints(modifier.fillMaxWidth().height(42.dp).clip(CircleShape).background(pal.glass).padding(3.dp)) {
-    val half = maxWidth / 2
-    val x by animateDpAsState(if (Store.kind == "phone") half else 0.dp, calm(), label = "thumb")
-    Box(Modifier.offset(x = x).width(half).fillMaxSize().shadow(6.dp, CircleShape).clip(CircleShape).background(if (pal.dark) hex("#3a3a3c") else Color.White))
+    val seg = maxWidth / KINDS.size
+    val x by animateDpAsState(seg * KINDS.indexOf(Store.kind).coerceAtLeast(0), calm(), label = "thumb")
+    Box(Modifier.offset(x = x).width(seg).fillMaxSize().shadow(6.dp, CircleShape).clip(CircleShape).background(if (pal.dark) hex("#3a3a3c") else Color.White))
     Row(Modifier.fillMaxSize()) {
-      listOf(Triple("email", "邮箱", Icons.Outlined.Email), Triple("phone", "手机号", Icons.Outlined.SimCard)).forEach { (k, name, icon) ->
+      listOf(Triple("email", "邮箱", Icons.Outlined.Email), Triple("phone", "手机号", Icons.Outlined.SimCard), Triple("login", "登录", Icons.Outlined.Key)).forEach { (k, name, icon) ->
         val on = Store.kind == k
         val c = if (on) pal.primary else pal.secondary
         Row(Modifier.weight(1f).fillMaxSize().press(1f) { if (!on) { hap(TICK); Store.setKind(k) } },
           horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-          Icon(icon, null, Modifier.size(16.dp), tint = c); Spacer(Modifier.width(6.dp))
-          T(name, 15f, FontWeight.SemiBold, c); Spacer(Modifier.width(6.dp))
+          Icon(icon, null, Modifier.size(16.dp), tint = c); Spacer(Modifier.width(5.dp))
+          T(name, 15f, FontWeight.SemiBold, c, lines = 1); Spacer(Modifier.width(5.dp))
           T("${Store.data.identities.count { it.type == k }}", 13f, FontWeight.Medium, pal.secondary)
         }
       }
@@ -212,7 +216,12 @@ fun AddCard(kind: String, modifier: Modifier = Modifier) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
       Icon(Icons.Filled.Add, null, Modifier.size(30.dp), tint = pal.secondary)
       Spacer(Modifier.height(10.dp))
-      T(if (Store.data.identities.isEmpty()) "从一个邮箱或手机号开始" else if (kind == "phone") "添加手机号" else "添加邮箱", 16f, FontWeight.SemiBold, pal.secondary)
+      T(when {
+        kind == "login" -> "添加微信或 Apple 账号"
+        Store.data.identities.isEmpty() -> "从一个邮箱或手机号开始"
+        kind == "phone" -> "添加手机号"
+        else -> "添加邮箱"
+      }, 16f, FontWeight.SemiBold, pal.secondary)
     }
   }
 }
@@ -239,7 +248,7 @@ fun AppGrid(modifier: Modifier) {
     AnimatedContent(i?.id, transitionSpec = { (fadeIn(calm()) + scaleIn(calm(), 0.92f)) togetherWith fadeOut(calm()) }, label = "grid") { _ ->
       val tiles: List<@Composable () -> Unit> = shown.map { a -> @Composable {
         Column(Modifier.press(0.9f) { Store.push(Route.AccountR(a.id)) }, horizontalAlignment = Alignment.CenterHorizontally) {
-          AppIcon(a.name, a.domain, 58.dp, Modifier.shadow(8.dp, squircle(58.dp), ambientColor = brandColor(a.name, a.domain), spotColor = brandColor(a.name, a.domain)))
+          AppIcon(a, 58.dp, Modifier.shadow(8.dp, squircle(58.dp), ambientColor = brandColor(a.name, a.domain), spotColor = brandColor(a.name, a.domain)))
           T(a.handle?.let { Store.handleText(it) } ?: a.name, 12f, lines = 1, modifier = Modifier.padding(top = 6.dp))
         }
       } } + (if (i != null) listOf(@Composable {

@@ -27,7 +27,8 @@ struct IdentityDetail: View {
               Text(i.notes).frame(maxWidth: .infinity, alignment: .leading).padding(14)
                 .background(.glass, in: RoundedRectangle(cornerRadius: 16, style: .continuous)).padding(.horizontal, 20)
             }
-            section("用它注册或绑定的 \(accs.count) 个网站与 App")
+            links(i)
+            section((i.isLogin ? "用它登录的 " : "用它注册或绑定的 ") + "\(accs.count) 个网站与 App")
             VStack(spacing: 8) {
               ForEach(accs) { a in
                 Button { store.route = .account(a.id) } label: { ReelRow(account: a) }.buttonStyle(PressStyle(scale: 0.98))
@@ -38,6 +39,7 @@ struct IdentityDetail: View {
                   .background(.glass, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
               }.buttonStyle(PressStyle(scale: 0.98))
             }.padding(.horizontal, 20)
+            viaSites(i, direct: accs)
             Color.clear.frame(height: 30)
           }
         }
@@ -50,6 +52,8 @@ struct IdentityDetail: View {
             store.mutate("已删除") { s in
               s.identities.removeAll { $0.id == i.id }
               for k in s.accounts.indices { s.accounts[k].identityIds.removeAll { $0 == i.id } }
+              // login cards bound to it just lose the binding
+              for k in s.identities.indices where s.identities[k].via == i.id { s.identities[k].via = nil }
             }
             store.setKind(store.kind)
             dismiss()
@@ -57,6 +61,59 @@ struct IdentityDetail: View {
         } message: { Text(accs.isEmpty ? "删除后可以撤销。" : "它会从 \(accs.count) 个网站与 App 的记录里移除，这些网站本身会保留。") }
       }
     }
+  }
+
+  /// login card: the email / phone it is bound to. Email / phone: the login cards bound to it.
+  @ViewBuilder func links(_ i: Identity) -> some View {
+    if i.isLogin {
+      if let v = store.via(i) {
+        section("绑定")
+        Button { store.route = .identity(v.id) } label: { identityRow(v, sub: v.kindName + (v.label.isEmpty ? "" : " · " + store.display(v))) }
+          .buttonStyle(PressStyle(scale: 0.98)).padding(.horizontal, 20)
+      }
+    } else {
+      let bound = store.boundLogins(i.id)
+      if !bound.isEmpty {
+        section("绑定了这个号的登录账户")
+        VStack(spacing: 8) {
+          ForEach(bound) { l in
+            Button { store.route = .identity(l.id) } label: { identityRow(l, sub: l.kindName + " 绑定了这个号") }
+              .buttonStyle(PressStyle(scale: 0.98))
+          }
+        }.padding(.horizontal, 20)
+      }
+    }
+  }
+  /// sites that log in with a 微信 / Apple card bound to this email / phone (affected when it changes)
+  @ViewBuilder func viaSites(_ i: Identity, direct: [Account]) -> some View {
+    if !i.isLogin {
+      let seen = Set(direct.map(\.id))
+      ForEach(store.boundLogins(i.id)) { l in
+        let more = store.accounts(of: l.id).filter { !seen.contains($0.id) }
+        if !more.isEmpty {
+          section("通过\(l.isApple ? " Apple " : "微信")登录的 \(more.count) 个网站与 App")
+          VStack(spacing: 8) {
+            ForEach(more) { a in
+              Button { store.route = .account(a.id) } label: { ReelRow(account: a) }.buttonStyle(PressStyle(scale: 0.98))
+            }
+          }.padding(.horizontal, 20)
+        }
+      }
+    }
+  }
+  func identityRow(_ i: Identity, sub: String) -> some View {
+    HStack(spacing: 12) {
+      IdentityGlyph(identity: i, size: 15).foregroundStyle(.white).frame(width: 40, height: 28)
+        .background(skinGradient(i.color), in: CardShape(sim: i.isPhone))
+      VStack(alignment: .leading, spacing: 2) {
+        Text(store.title(i)).font(.system(size: 16, weight: .semibold)).lineLimit(1)
+        Text(sub).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
+      }
+      Spacer()
+      Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(.tertiary)
+    }
+    .padding(12).background(.glass, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    .foregroundStyle(.primary)
   }
 
   func section(_ s: String) -> some View {
@@ -89,7 +146,7 @@ struct AccountDetail: View {
       NavigationStack {
         ScrollView {
           VStack(spacing: 0) {
-            AppIcon(name: a.name, domain: a.domain, size: 96)
+            AppIcon(name: a.name, domain: a.domain, icon: a.icon, size: 96)
               .bakedShadow(RoundedRectangle(cornerRadius: 96 * 0.235, style: .continuous), key: "icon96" + a.name + a.domain, color: b.opacity(0.5), radius: 24, y: 10).padding(.top, 10)
             Text(a.name).font(.system(size: 26, weight: .bold)).padding(.top, 14)
             if let h = a.handle { Text(store.handleText(h)).font(.system(size: 15)).foregroundStyle(.secondary).padding(.top, 2) }
@@ -102,7 +159,7 @@ struct AccountDetail: View {
               act("编辑", "pencil") { store.route = .editAccount(a.id) }
               act("删除", "trash", destructive: true) { askDelete = true }
             }.padding(.horizontal, 20).padding(.top, 24)
-            Text("用的邮箱和手机号").font(.system(size: 13, weight: .medium)).foregroundStyle(.secondary)
+            Text(a.identityIds.contains { store.identity($0)?.isLogin == true } ? "用的邮箱、手机号和登录方式" : "用的邮箱和手机号").font(.system(size: 13, weight: .medium)).foregroundStyle(.secondary)
               .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 36).padding(.top, 26).padding(.bottom, 8)
             VStack(spacing: 10) {
               let list = a.identityIds.compactMap { store.identity($0) }
@@ -110,7 +167,7 @@ struct AccountDetail: View {
               ForEach(list) { i in
                 Button { store.route = .identity(i.id) } label: {
                   HStack(spacing: 12) {
-                    Image(systemName: i.isPhone ? "simcard.fill" : "envelope.fill").foregroundStyle(.white).frame(width: 40, height: 28)
+                    IdentityGlyph(identity: i, size: 15).foregroundStyle(.white).frame(width: 40, height: 28)
                       .background(skinGradient(i.color), in: CardShape(sim: i.isPhone))
                     VStack(alignment: .leading, spacing: 2) {
                       Text(store.title(i)).font(.system(size: 16, weight: .semibold))

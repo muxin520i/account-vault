@@ -4,39 +4,28 @@ import SwiftUI
 struct AtlasApp: App {
   @State private var store = Store()
   @StateObject private var sync = Sync()
-  @StateObject private var vault = Vault.shared
-  @State private var unlocked = false
   @Environment(\.scenePhase) private var phase
 
   var body: some Scene {
     WindowGroup {
-      Group {
-        if unlocked {
-          RootView()
-            .environment(store)
-            .environmentObject(sync)
-            .onAppear { setupSync() }
-            .onChange(of: phase) { _, p in
-              if p == .background { store.clearOnLock(); Vault.shared.lock(); unlocked = false }
-              else if p == .active { Task { await sync.run() } }
+      RootView()
+        .environment(store)
+        .environmentObject(sync)
+        .onAppear {
+          ThemeFX.apply(store.theme)
+          sync.store = store
+          let s = sync
+          store.onSaved = { [weak s] in s?.schedule() }
+          if store.data.demo == true && UserDefaults.standard.string(forKey: "atlasDemo") == nil {
+            store.show("这是示例数据", action: "清空") {
+              store.mutate(nil) { s in s.identities = []; s.accounts = [] }
+              store.setKind(store.kind)
             }
-        } else {
-          UnlockView { firstSetup in
-            store.loadFromVault(firstSetup: firstSetup)
-            unlocked = true
-            setupSync()
           }
+          Task { await sync.run() }
         }
-      }
+        .onChange(of: phase) { _, p in if p == .active { Task { await sync.run() } } }
     }
-  }
-
-  private func setupSync() {
-    ThemeFX.apply(store.theme)
-    sync.store = store
-    let s = sync
-    store.onSaved = { [weak s] in s?.schedule() }
-    Task { await sync.run() }
   }
 }
 
@@ -44,6 +33,7 @@ struct RootView: View {
   @Environment(Store.self) var store
   @State private var tab = 0
   @State private var dir: CGFloat = 1
+  @State private var showSplash = true
 
   var body: some View {
     TabView(selection: Binding(get: { tab }, set: { t in dir = t >= tab ? 1 : -1; tab = t })) {
@@ -56,6 +46,7 @@ struct RootView: View {
     .onChange(of: store.theme) { _, t in ThemeFX.apply(t) }
     .sheet(item: Binding(get: { store.route }, set: { r in store.route = r })) { r in sheet(r) }
     .overlay(alignment: .top) { ToastView() }
+    .overlay { if showSplash { SplashView { showSplash = false } } }
     .onAppear {
       // launch arguments used by the CI preview screenshots
       let d = UserDefaults.standard
@@ -310,4 +301,30 @@ struct ThemeOrigin: View {
 struct OriginKey: PreferenceKey {
   static var defaultValue: CGPoint = .zero
   static func reduce(value: inout CGPoint, nextValue: () -> CGPoint) { value = nextValue() }
+}
+
+/// 启动开屏图：显示约 1.6 秒后淡出。图片由编译脚本打进 App bundle 根目录。
+struct SplashView: View {
+  var onDone: () -> Void
+  @State private var opacity = 1.0
+  var body: some View {
+    ZStack {
+      if let path = Bundle.main.path(forResource: "unlock-bg", ofType: "jpg"),
+         let img = UIImage(contentsOfFile: path) {
+        Image(uiImage: img).resizable().scaledToFill().ignoresSafeArea().clipped()
+      } else {
+        Color.black.ignoresSafeArea()
+      }
+      Color.black.opacity(0.28).ignoresSafeArea()
+      VStack(spacing: 14) {
+        Text("账号仓库").font(.system(size: 30, weight: .bold)).foregroundStyle(.white)
+        Text("ACCOUNT VAULT").font(.system(size: 13, weight: .medium)).foregroundStyle(.white.opacity(0.8))
+      }
+    }
+    .opacity(opacity)
+    .onAppear {
+      withAnimation(.easeOut(duration: 0.42)) { opacity = 0 }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { onDone() }
+    }
+  }
 }

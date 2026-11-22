@@ -76,6 +76,7 @@ struct MapView: View {
       // group labels
       if m.ids.contains(where: { $0.type == "email" }) { label("邮箱").offset(x: 18, y: 0) }
       if let k = m.ids.firstIndex(where: { $0.type == "phone" }) { label("手机号").offset(x: 18, y: m.idY[k] - 22) }
+      if let k = m.ids.firstIndex(where: { $0.isLogin }) { label("登录").offset(x: 18, y: m.idY[k] - 22) }
 
       ForEach(Array(m.ids.enumerated()), id: \.element.id) { e in
         let k = e.offset, i = e.element
@@ -94,7 +95,7 @@ struct MapView: View {
         let j = e.offset, a = e.element
         Button { store.route = .account(a.id) } label: {
           HStack(spacing: 8) {
-            AppIcon(name: a.name, domain: a.domain, size: 30)
+            AppIcon(name: a.name, domain: a.domain, icon: a.icon, size: 30)
             Text(a.handle.map { store.handleText($0) } ?? a.name).font(.system(size: 13, weight: .medium)).lineLimit(1)
             Spacer(minLength: 0)
           }
@@ -120,7 +121,7 @@ struct MapView: View {
     let shape = CardShape(sim: i.isPhone)
     return VStack(alignment: .leading, spacing: 2) {
       HStack(spacing: 5) {
-        Image(systemName: i.isPhone ? "simcard.fill" : "envelope.fill").font(.system(size: 11, weight: .semibold))
+        IdentityGlyph(identity: i, size: 11)
         Text("\(n)").font(.system(size: 13, weight: .bold, design: .rounded))
       }.opacity(0.85)
       Text(store.title(i)).font(.system(size: 14, weight: .semibold)).lineLimit(1)
@@ -143,7 +144,7 @@ struct MapLayout {
   let appY: [CGFloat]
   let height: CGFloat
   init(_ x: AtlasIndex, cardH: CGFloat, cardGap: CGFloat, appH: CGFloat, appGap: CGFloat, groupGap: CGFloat) {
-    let ids = x.emails + x.phones
+    let ids = x.emails + x.phones + x.logins
     // apps follow the first identity they belong to, so threads cross as little as possible
     var rank: [String: Int] = [:]
     for k in ids.indices { rank[ids[k].id] = k }
@@ -153,9 +154,12 @@ struct MapLayout {
       let a = order[l.element.id] ?? 999, b = order[r.element.id] ?? 999
       return a != b ? a < b : l.offset < r.offset
     }.map(\.element)
-    let emails = x.emails.count
-    var iy: [CGFloat] = []
-    for k in ids.indices { iy.append(CGFloat(k) * (cardH + cardGap) + (k >= emails && emails > 0 ? groupGap : 0) + 22) }
+    // a gap (with its label) between the email, phone and login groups
+    var iy: [CGFloat] = [], gaps: CGFloat = 0
+    for k in ids.indices {
+      if k > 0 && ids[k].type != ids[k - 1].type { gaps += groupGap }
+      iy.append(CGFloat(k) * (cardH + cardGap) + gaps + 22)
+    }
     var ay: [CGFloat] = []
     for j in apps.indices { ay.append(CGFloat(j) * (appH + appGap) + 22) }
     self.ids = ids; self.apps = apps; self.idY = iy; self.appY = ay

@@ -11,6 +11,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +33,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Email
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.SimCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,6 +43,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -114,10 +119,15 @@ val SKINS: List<Pair<String, Skin>> = listOf(
   "#3a3a3c" to Skin("曜石", listOf("#76767c" to 0f, "#3a3a3c" to 0.46f, "#0d0d10" to 1f)),
 )
 val COLORS = SKINS.map { it.first }
+/** Default skins of 微信 / Apple cards (not in the general swatch list). */
+val BRAND_SKINS: List<Pair<String, Skin>> = listOf(
+  "#07c160" to Skin("微信绿", listOf("#6fe39b" to 0f, "#07c160" to 0.46f, "#03733a" to 1f)),
+  "#1d1d1f" to Skin("石墨", listOf("#b9bcc2" to 0f, "#4a4b50" to 0.42f, "#121214" to 1f)),
+)
 
 /** 145deg CSS gradient over a box of the given size. */
 fun skinBrush(c: String, size: Size): Brush {
-  val s = SKINS.firstOrNull { it.first == c }?.second
+  val s = SKINS.firstOrNull { it.first == c }?.second ?: BRAND_SKINS.firstOrNull { it.first == c }?.second
   val stops = s?.stops?.map { it.second to hex(it.first) }?.toTypedArray()
     ?: hex(c).let { k -> arrayOf(0f to k.copy(alpha = 0.7f), 0.5f to k, 1f to k) }
   return Brush.linearGradient(*stops, start = Offset(size.width * 0.21f, 0f), end = Offset(size.width * 0.79f, size.height))
@@ -157,13 +167,17 @@ fun squircle(size: Dp) = RoundedCornerShape(size * 0.235f)
 
 /** Press feedback that feels like a card being pushed. */
 @Composable
-fun Modifier.press(scale: Float = 0.96f, haptic: Boolean = false, enabled: Boolean = true, onClick: () -> Unit): Modifier {
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+fun Modifier.press(scale: Float = 0.96f, haptic: Boolean = false, enabled: Boolean = true, onLongClick: (() -> Unit)? = null, onClick: () -> Unit): Modifier {
   val src = remember { MutableInteractionSource() }
   val pressed by src.collectIsPressedAsState()
   val s by animateFloatAsState(if (pressed) scale else 1f, calm(Spring.StiffnessMedium), label = "press")
   val view = LocalView.current
-  return this.graphicsLayer { scaleX = s; scaleY = s }
-    .clickable(src, null, enabled = enabled) { if (haptic) view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY); onClick() }
+  val m = this.graphicsLayer { scaleX = s; scaleY = s }
+  return if (onLongClick == null) m.clickable(src, null, enabled = enabled) { if (haptic) view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY); onClick() }
+  else m.combinedClickable(src, null, enabled = enabled, onLongClick = onLongClick) {
+    if (haptic) view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY); onClick()
+  }
 }
 
 @Composable fun haptics(): (Int) -> Unit { val v = LocalView.current; return { v.performHapticFeedback(it) } }
@@ -215,8 +229,26 @@ object IconCache {
   }
 }
 
+/** Account icon: its own custom / App Store icon first, then the preset, favicon, letter. */
 @Composable
-fun AppIcon(name: String, domain: String, size: Dp = 52.dp, modifier: Modifier = Modifier) {
+fun AppIcon(a: Account, size: Dp = 52.dp, modifier: Modifier = Modifier) = AppIcon(a.name, a.domain, size, modifier, a.icon, a.id)
+
+@Composable
+fun AppIcon(name: String, domain: String, size: Dp = 52.dp, modifier: Modifier = Modifier, icon: String? = null, iconKey: String = "") {
+  val shape = squircle(size)
+  val ck = remember(iconKey, icon) { icon?.takeIf { it.startsWith("data:image") }?.let { CustomIcon.key(iconKey, it) } }
+  var custom by remember(ck) { androidx.compose.runtime.mutableStateOf(ck?.let { CustomIcon.cached(it) }) }
+  if (ck != null && custom == null) androidx.compose.runtime.LaunchedEffect(ck) { custom = CustomIcon.decode(ck, icon!!) }
+  val c = custom
+  if (c != null) {
+    Box(modifier.size(size).clip(shape).border(0.5.dp, Color.White.copy(alpha = 0.12f), shape)) {
+      Image(c, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+    }
+  } else PresetIcon(name, domain, size, modifier)
+}
+
+@Composable
+private fun PresetIcon(name: String, domain: String, size: Dp, modifier: Modifier) {
   val ctx = LocalContext.current
   val shape = squircle(size)
   val preset = remember(name, domain) { IconCache.preset(name, domain) }
@@ -258,7 +290,21 @@ fun Chip() {
   }
 }
 
+/** Stands in for the gold chip on an eSIM: there is no physical card. */
+@Composable
+fun ESimBadge() {
+  Box(Modifier.size(32.dp, 22.dp).clip(RoundedCornerShape(5.dp)).background(Color.White.copy(alpha = 0.18f))
+    .border(0.8.dp, Color.White.copy(alpha = 0.55f), RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
+    T("eSIM", 10f, FontWeight.Bold, Color.White, lines = 1)
+  }
+}
+
 fun footNote(i: Identity): String {
+  if (i.isLogin) {
+    val v = Store.viaOf(i)
+    if (v != null) return "绑定 " + Store.title(v)
+    return i.notes.ifEmpty { if (i.isApple) "Apple ID" else "微信号" }
+  }
   if (i.isPhone) {
     val c = carrier(i.value)
     val parts = listOf(if (c.isNotEmpty() && !i.notes.contains(c.drop(2))) c else "", i.notes).filter { it.isNotEmpty() }
@@ -297,8 +343,11 @@ fun WalletCard(i: Identity, modifier: Modifier = Modifier, shadow: Boolean = tru
       Column(Modifier.fillMaxSize().padding(18.dp)) {
         Row(verticalAlignment = Alignment.Top) {
           Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (i.isPhone) Chip() else Icon(Icons.Outlined.Email, null, Modifier.size(20.dp), tint = Color.White)
-            T(i.label.ifEmpty { if (i.isPhone) "手机号" else "邮箱" }, 16f, FontWeight.SemiBold, Color.White, lines = 1)
+            if (i.isESim) ESimBadge() else if (i.isPhone) Chip() else if (i.isLogin) LoginGlyph(i, 22.dp) else Icon(Icons.Outlined.Email, null, Modifier.size(20.dp), tint = Color.White)
+            if (i.isLogin) {
+              T(providerName(i.provider), 16f, FontWeight.SemiBold, Color.White, lines = 1)
+              if (i.label.isNotEmpty()) T(i.label, 13f, FontWeight.Medium, Color.White.copy(alpha = 0.75f), lines = 1)
+            } else T(i.label.ifEmpty { if (i.isPhone) "手机号" else "邮箱" }, 16f, FontWeight.SemiBold, Color.White, lines = 1)
           }
           Spacer(Modifier.weight(1f))
           Column(horizontalAlignment = Alignment.End) {
@@ -331,7 +380,7 @@ fun AutoSizeText(text: String, max: Float, weight: FontWeight, color: Color) {
 fun IconStack(accounts: List<Account>) {
   Row(verticalAlignment = Alignment.CenterVertically) {
     accounts.take(4).forEachIndexed { k, a ->
-      AppIcon(a.name, a.domain, 28.dp, Modifier.offset(x = (-9 * k).dp).border(1.5.dp, Color.White.copy(alpha = 0.55f), squircle(28.dp)))
+      AppIcon(a, 28.dp, Modifier.offset(x = (-9 * k).dp).border(1.5.dp, Color.White.copy(alpha = 0.55f), squircle(28.dp)))
     }
     if (accounts.size > 4) {
       val shift = (-9 * (minOf(accounts.size, 4) - 1)).dp
@@ -368,7 +417,7 @@ fun ReelRow(a: Account, meta: String? = null, onClick: () -> Unit) {
       .padding(horizontal = 12.dp, vertical = 10.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
-    AppIcon(a.name, a.domain, 44.dp)
+    AppIcon(a, 44.dp)
     Spacer(Modifier.width(12.dp))
     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
       Row(verticalAlignment = Alignment.CenterVertically) {
@@ -386,7 +435,68 @@ fun ReelRow(a: Account, meta: String? = null, onClick: () -> Unit) {
 @Composable
 fun SmallCard(i: Identity, icon: ImageVector, w: Dp, h: Dp) {
   Box(Modifier.size(w, h).clip(CardShape(i.isPhone)).drawBehindCompat { drawRect(skinBrush(i.color, size)) }, contentAlignment = Alignment.Center) {
-    Icon(icon, null, Modifier.size(h * 0.5f), tint = Color.White)
+    if (i.isESim) T("eSIM", (h.value * 0.36f), FontWeight.Bold, Color.White, lines = 1)
+    else if (i.isLogin) LoginGlyph(i, h * 0.6f)
+    else Icon(icon, null, Modifier.size(h * 0.5f), tint = Color.White)
+  }
+}
+
+/** Material icon for an identity kind (login cards draw their own glyph, see LoginGlyph). */
+fun kindIcon(i: Identity): ImageVector = when {
+  i.isPhone -> Icons.Filled.SimCard
+  i.isLogin -> Icons.Filled.Key
+  else -> Icons.Filled.Email
+}
+
+@Composable
+fun LoginGlyph(i: Identity, size: Dp, color: Color = Color.White) = if (i.isApple) AppleGlyph(size, color) else WeChatGlyph(size, color)
+
+/** Two overlapping chat bubbles, outlined (not the official artwork). */
+@Composable
+fun WeChatGlyph(size: Dp, color: Color = Color.White) {
+  Canvas(Modifier.size(size)) {
+    val w = this.size.width; val sw = w * 0.075f
+    fun bubble(cx: Float, cy: Float, rx: Float, ry: Float, tailLeft: Boolean) {
+      val p = Path().apply {
+        addOval(androidx.compose.ui.geometry.Rect(cx - rx, cy - ry, cx + rx, cy + ry))
+      }
+      drawPath(p, color, style = Stroke(sw))
+      val tx = if (tailLeft) cx - rx * 0.45f else cx + rx * 0.45f
+      val tail = Path().apply {
+        moveTo(tx - rx * 0.18f, cy + ry * 0.82f)
+        lineTo(tx + (if (tailLeft) -rx * 0.22f else rx * 0.22f), cy + ry * 1.32f)
+        lineTo(tx + rx * 0.22f, cy + ry * 0.9f)
+      }
+      drawPath(tail, color, style = Stroke(sw, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+    }
+    bubble(w * 0.38f, w * 0.38f, w * 0.34f, w * 0.27f, true)
+    bubble(w * 0.66f, w * 0.64f, w * 0.27f, w * 0.22f, false)
+  }
+}
+
+/** A simple drawn apple: body with a bite, and a leaf. */
+@Composable
+fun AppleGlyph(size: Dp, color: Color = Color.White) {
+  Canvas(Modifier.size(size)) {
+    val w = this.size.width; val h = this.size.height
+    val body = Path().apply {
+      moveTo(w * 0.50f, h * 0.30f)
+      cubicTo(w * 0.36f, h * 0.20f, w * 0.10f, h * 0.24f, w * 0.12f, h * 0.55f)
+      cubicTo(w * 0.14f, h * 0.80f, w * 0.30f, h * 0.98f, w * 0.42f, h * 0.95f)
+      cubicTo(w * 0.47f, h * 0.94f, w * 0.53f, h * 0.94f, w * 0.58f, h * 0.95f)
+      cubicTo(w * 0.70f, h * 0.98f, w * 0.82f, h * 0.84f, w * 0.88f, h * 0.70f)
+      cubicTo(w * 0.72f, h * 0.62f, w * 0.72f, h * 0.40f, w * 0.85f, h * 0.33f)
+      cubicTo(w * 0.74f, h * 0.20f, w * 0.60f, h * 0.22f, w * 0.50f, h * 0.30f)
+      close()
+    }
+    drawPath(body, color)
+    val leaf = Path().apply {
+      moveTo(w * 0.50f, h * 0.24f)
+      cubicTo(w * 0.50f, h * 0.12f, w * 0.58f, h * 0.04f, w * 0.68f, h * 0.03f)
+      cubicTo(w * 0.68f, h * 0.15f, w * 0.60f, h * 0.23f, w * 0.50f, h * 0.24f)
+      close()
+    }
+    drawPath(leaf, color)
   }
 }
 

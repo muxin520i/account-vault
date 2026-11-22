@@ -27,10 +27,15 @@ let SKINS: [(String, Skin)] = [
   ("#3a3a3c", Skin(name: "曜石", stops: [("#76767c", 0), ("#3a3a3c", 0.46), ("#0d0d10", 1)])),
 ]
 let COLORS = SKINS.map(\.0)
+/// default faces of login cards: WeChat green and Apple graphite (the user can pick any skin)
+let LOGIN_SKINS: [(String, Skin)] = [
+  ("#07c160", Skin(name: "微信绿", stops: [("#6be39b", 0), ("#07c160", 0.45), ("#03704f", 1)])),
+  ("#1d1d1f", Skin(name: "石墨", stops: [("#b4b6bb", 0), ("#55575d", 0.36), ("#1d1d1f", 1)])),
+]
 
 func skinGradient(_ c: String) -> LinearGradient {
   let stops: [Gradient.Stop]
-  if let s = SKINS.first(where: { $0.0 == c })?.1 { stops = s.stops.map { Gradient.Stop(color: Color(hex: $0.0), location: $0.1) } }
+  if let s = (SKINS.first(where: { $0.0 == c }) ?? LOGIN_SKINS.first(where: { $0.0 == c }))?.1 { stops = s.stops.map { Gradient.Stop(color: Color(hex: $0.0), location: $0.1) } }
   else { let k = Color(hex: c); stops = [.init(color: k.opacity(0.7), location: 0), .init(color: k, location: 0.5), .init(color: k, location: 1)] }
   // 145deg in CSS
   return LinearGradient(stops: stops, startPoint: UnitPoint(x: 0.21, y: 0), endPoint: UnitPoint(x: 0.79, y: 1))
@@ -156,11 +161,22 @@ final class IconEntry { let image: UIImage; let favicon: Bool; init(_ i: UIImage
     keyCache[ck] = k
     return k
   }
+  /// "c:<len>:<hash>" for an account's own icon (data URL); the string is kept to decode on demand
+  private var custom: [String: String] = [:]
+  func key(name: String, domain: String, icon: String?) -> String {
+    guard let icon, !icon.isEmpty else { return key(name: name, domain: domain) }
+    let k = "c:\(icon.utf8.count):\(icon.hashValue)"
+    if custom[k] == nil { custom[k] = icon }
+    return k
+  }
+  /// "u:<https url>" for a remote image (App Store artwork in suggestions), memory only
+  func key(url: String) -> String { url.isEmpty ? "" : "u:" + url }
+
   func cached(_ key: String) -> IconEntry? { mem[key] }
   func hasFailed(_ key: String) -> Bool { failed.contains(key) }
 
   func prefetch(_ accounts: [Account]) {
-    for a in accounts { load(key(name: a.name, domain: a.domain)) { _ in } }
+    for a in accounts { load(key(name: a.name, domain: a.domain, icon: a.icon)) { _ in } }
   }
 
   func load(_ key: String, _ done: @escaping (IconEntry?) -> Void) {
@@ -169,6 +185,26 @@ final class IconEntry { let image: UIImage; let favicon: Bool; init(_ i: UIImage
     if waiting[key] != nil { waiting[key]!.append(done); return }
     waiting[key] = [done]
     let body = String(key.dropFirst(2)), disk = self.disk
+    if key.hasPrefix("c:") {
+      let src = custom[key] ?? ""
+      work.async {
+        let img = IconCodec.data(fromDataURL: src).flatMap { IconStore.decode(data: $0) }
+        Task { @MainActor in self.finish(key, img.map { IconEntry($0, false) }) }
+      }
+      return
+    }
+    if key.hasPrefix("u:") {
+      guard let u = URL(string: body) else { finish(key, nil); return }
+      URLSession.shared.dataTask(with: u) { data, resp, _ in
+        let ok = ((resp as? HTTPURLResponse)?.statusCode ?? 0) == 200
+        let img = ok ? data.flatMap { IconStore.decode(data: $0) } : nil
+        Task { @MainActor in
+          // a failed remote load may succeed later (offline now), so don't remember it as failed
+          if img == nil { self.waiting.removeValue(forKey: key)?.forEach { $0(nil) } } else { self.finish(key, IconEntry(img!, false)) }
+        }
+      }.resume()
+      return
+    }
     if key.hasPrefix("b:") {
       work.async {
         let path = Bundle.main.path(forResource: body, ofType: "png", inDirectory: "icons")
@@ -224,6 +260,8 @@ final class IconEntry { let image: UIImage; let favicon: Bool; init(_ i: UIImage
 struct AppIcon: View {
   let name: String
   let domain: String
+  var icon: String? = nil       // account.icon: wins over preset / favicon / letter
+  var url: String? = nil        // remote artwork (App Store suggestions)
   var size: CGFloat = 52
   @State private var loaded = 0   // bumps when an async load lands, to re-read the cache
   @State private var drew = Drew() // what the last body pass showed (plain box, never invalidates)
@@ -231,7 +269,7 @@ struct AppIcon: View {
 
   var body: some View {
     let r = RoundedRectangle(cornerRadius: size * 0.235, style: .continuous)
-    let key = IconStore.shared.key(name: name, domain: domain)
+    let key = url.map { IconStore.shared.key(url: $0) } ?? IconStore.shared.key(name: name, domain: domain, icon: icon)
     let _ = loaded
     let entry = IconStore.shared.cached(key)
     let _ = { drew.image = entry != nil }()
@@ -315,6 +353,38 @@ struct Chip: View {
   }
 }
 
+/// Stands in for the gold chip on an eSIM: there is no physical card.
+struct ESimBadge: View {
+  var body: some View {
+    Text("eSIM").font(.system(size: 10, weight: .bold, design: .rounded))
+      .frame(width: 32, height: 22)
+      .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+      .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).stroke(.white.opacity(0.55), lineWidth: 0.8))
+  }
+}
+
+/// The small glyph on mini cards: envelope, SIM card, the word eSIM, or a login provider.
+struct IdentityGlyph: View {
+  let identity: Identity
+  var size: CGFloat
+  var body: some View {
+    if identity.isESim { Text("eSIM").font(.system(size: size * 0.8, weight: .bold, design: .rounded)) }
+    else if identity.isLogin { LoginGlyph(apple: identity.isApple, size: size, filled: true) }
+    else { Image(systemName: identity.isPhone ? "simcard.fill" : "envelope.fill").font(.system(size: size, weight: .semibold)) }
+  }
+}
+
+/// 微信: a plain two-bubble outline (not the official logo artwork). Apple: the SF Symbol.
+struct LoginGlyph: View {
+  let apple: Bool
+  var size: CGFloat
+  var filled = false
+  var body: some View {
+    Image(systemName: apple ? "apple.logo" : (filled ? "bubble.left.and.bubble.right.fill" : "bubble.left.and.bubble.right"))
+      .font(.system(size: size, weight: apple ? .semibold : .medium))
+  }
+}
+
 struct WalletCard: View {
   @Environment(Store.self) var store
   let identity: Identity
@@ -331,8 +401,8 @@ struct WalletCard: View {
       VStack(alignment: .leading, spacing: 0) {
         HStack(alignment: .top) {
           HStack(spacing: 8) {
-            if i.isPhone { Chip() } else { Image(systemName: "envelope").font(.system(size: 17, weight: .medium)) }
-            Text(i.label.isEmpty ? (i.isPhone ? "手机号" : "邮箱") : i.label).font(.system(size: 16, weight: .semibold))
+            if i.isESim { ESimBadge() } else if i.isPhone { Chip() } else if i.isLogin { LoginGlyph(apple: i.isApple, size: 17) } else { Image(systemName: "envelope").font(.system(size: 17, weight: .medium)) }
+            Text(cardTitle(i)).font(.system(size: 16, weight: .semibold)).lineLimit(1)
           }
           Spacer()
           VStack(alignment: .trailing, spacing: 0) {
@@ -363,7 +433,15 @@ struct WalletCard: View {
     .drawingGroup()
     .bakedShadow(shape, key: "card\(i.isPhone)\(i.color)", color: Color(hex: i.color).opacity(0.45), radius: 22, y: 14)
   }
+  func cardTitle(_ i: Identity) -> String {
+    if i.isLogin { return i.label.isEmpty ? i.kindName : i.kindName + " · " + i.label }
+    return i.label.isEmpty ? i.kindName : i.label
+  }
   func footNote(_ i: Identity) -> String {
+    if i.isLogin {
+      if let v = store.via(i) { return "绑定 " + store.title(v) }
+      return i.notes.isEmpty ? (i.isApple ? "Apple ID" : "微信号") : i.notes
+    }
     if i.isPhone {
       let c = carrier(i.value)
       let parts = [(!c.isEmpty && !i.notes.contains(String(c.dropFirst(2)))) ? c : "", i.notes].filter { !$0.isEmpty }
@@ -393,7 +471,7 @@ struct IconStack: View {
   var body: some View {
     HStack(spacing: -9) {
       ForEach(accounts.prefix(4)) { a in
-        AppIcon(name: a.name, domain: a.domain, size: 28)
+        AppIcon(name: a.name, domain: a.domain, icon: a.icon, size: 28)
           .overlay(RoundedRectangle(cornerRadius: 28 * 0.235, style: .continuous).stroke(.white.opacity(0.55), lineWidth: 1.5))
       }
       if accounts.count > 4 {
@@ -433,7 +511,7 @@ struct ReelRow: View {
   var body: some View {
     let a = account, b = brandColor(name: a.name, domain: a.domain)
     HStack(spacing: 12) {
-      AppIcon(name: a.name, domain: a.domain, size: 44)
+      AppIcon(name: a.name, domain: a.domain, icon: a.icon, size: 44)
       VStack(alignment: .leading, spacing: 4) {
         HStack(spacing: 6) {
           Text(a.name).font(.system(size: 16, weight: .semibold)).lineLimit(1)

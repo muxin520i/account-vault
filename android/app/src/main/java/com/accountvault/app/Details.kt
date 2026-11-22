@@ -113,7 +113,22 @@ fun IdentityDetail(id: String) {
       SectionLabel("备注")
       T(i.notes, 16f, modifier = Modifier.padding(horizontal = 20.dp).fillMaxWidth().glass(RoundedCornerShape(16.dp)).padding(14.dp))
     }
-    SectionLabel("用它注册或绑定的 ${accs.size} 个网站与 App")
+    if (i.isLogin) {
+      // the email / phone this 微信 / Apple 账户 is bound to
+      Store.viaOf(i)?.let { v ->
+        SectionLabel("绑定")
+        LinkRow(v, Store.title(v), if (v.label.isNotEmpty()) Store.display(v) else if (v.isPhone) "手机号" else "邮箱")
+      }
+    } else {
+      val logins = Store.loginsVia(i.id)
+      if (logins.isNotEmpty()) {
+        SectionLabel("第三方登录")
+        Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          logins.forEach { l -> LinkRow(l, "${providerName(l.provider)} 绑定了这个号", Store.display(l), padded = false) }
+        }
+      }
+    }
+    SectionLabel(if (i.isLogin) "用它登录的 ${accs.size} 个网站与 App" else "用它注册或绑定的 ${accs.size} 个网站与 App")
     Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
       accs.forEach { a -> ReelRow(a) { Store.push(Route.AccountR(a.id)) } }
       Row(Modifier.fillMaxWidth().height(52.dp).press(0.98f) { Store.push(Route.Picker(i.id)) }.glass(RoundedCornerShape(18.dp)),
@@ -121,9 +136,16 @@ fun IdentityDetail(id: String) {
         Icon(Icons.Filled.Add, null, tint = pal.accent); Spacer(Modifier.width(6.dp)); T("添加网站或 App", 16f, FontWeight.SemiBold, pal.accent)
       }
     }
+    // sites reached through a 微信 / Apple card bound to this number: they are affected when it changes too
+    if (!i.isLogin) Store.indirectAccounts(i.id).forEach { (l, list) ->
+      SectionLabel("通过${if (l.isApple) " Apple " else "微信"}登录的 ${list.size} 个网站与 App")
+      Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        list.forEach { a -> ReelRow(a) { Store.push(Route.AccountR(a.id)) } }
+      }
+    }
   }
   if (askDelete) Confirm("删除 ${Store.title(i)}？", if (accs.isEmpty()) "删除后可以撤销。" else "它会从 ${accs.size} 个网站与 App 的记录里移除，这些网站本身会保留。", "删除", { askDelete = false }) {
-    Store.mutate("已删除") { s -> s.copy(identities = s.identities.filter { it.id != i.id }, accounts = s.accounts.map { a -> a.copy(identityIds = a.identityIds.filter { it != i.id }) }) }
+    Store.mutate("已删除") { s -> s.copy(identities = s.identities.filter { it.id != i.id }.map { if (it.via == i.id) it.copy(via = null) else it }, accounts = s.accounts.map { a -> a.copy(identityIds = a.identityIds.filter { it != i.id }) }) }
     Store.setKind(Store.kind)
     Store.pop()
   }
@@ -138,7 +160,7 @@ fun AccountDetail(id: String) {
   SheetScroll(aura = {
     Box(Modifier.fillMaxWidth().height(360.dp).fadeDown().blur(90.dp).graphicsLayer { alpha = 0.45f }.background(Brush.verticalGradient(listOf(b, b.copy(alpha = 0.3f), Color.Transparent))))
   }) {
-    AppIcon(a.name, a.domain, 96.dp, Modifier.padding(top = 10.dp).shadow(24.dp, squircle(96.dp), ambientColor = b, spotColor = b))
+    AppIcon(a, 96.dp, Modifier.padding(top = 10.dp).shadow(24.dp, squircle(96.dp), ambientColor = b, spotColor = b))
     T(a.name, 26f, FontWeight.Bold, modifier = Modifier.padding(top = 14.dp))
     a.handle?.let { T(Store.handleText(it), 15f, color = pal.secondary, modifier = Modifier.padding(top = 2.dp)) }
     Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -151,17 +173,17 @@ fun AccountDetail(id: String) {
       ActionTile("编辑", Icons.Outlined.Edit, Modifier.weight(1f)) { Store.push(Route.EditAccount(a.id)) }
       ActionTile("删除", Icons.Outlined.Delete, Modifier.weight(1f), destructive = true) { askDelete = true }
     }
-    SectionLabel("用的邮箱和手机号")
+    SectionLabel(if (a.identityIds.any { Store.identity(it)?.isLogin == true }) "用的邮箱、手机号和第三方登录" else "用的邮箱和手机号")
     Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
       val list = a.identityIds.mapNotNull { Store.identity(it) }
       if (list.isEmpty()) T("还没有关联，点编辑选一个。", 15f, color = pal.secondary, modifier = Modifier.padding(16.dp))
       list.forEach { i ->
         Row(Modifier.fillMaxWidth().press(0.98f) { Store.push(Route.IdentityR(i.id)) }.glass(RoundedCornerShape(18.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-          SmallCard(i, if (i.isPhone) Icons.Filled.SimCard else Icons.Filled.Email, 40.dp, 28.dp)
+          SmallCard(i, kindIcon(i), 40.dp, 28.dp)
           Spacer(Modifier.width(12.dp))
           Column(Modifier.weight(1f)) {
             T(Store.title(i), 16f, FontWeight.SemiBold)
-            if (i.label.isNotEmpty()) T(Store.display(i), 13f, color = pal.secondary)
+            if (i.label.isNotEmpty() || i.isLogin) T(Store.display(i), 13f, color = pal.secondary)
           }
           Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = pal.tertiary)
         }
@@ -176,6 +198,21 @@ fun AccountDetail(id: String) {
   if (askDelete) Confirm("删除 ${a.name}？", "只删除这条记录，不影响你在那个网站上的账号。", "删除", { askDelete = false }) {
     Store.mutate("已删除") { s -> s.copy(accounts = s.accounts.filter { it.id != a.id }) }
     Store.pop()
+  }
+}
+
+/** A tappable row with a small card that opens that identity. */
+@Composable
+fun LinkRow(i: Identity, title: String, sub: String, padded: Boolean = true) {
+  Row(Modifier.then(if (padded) Modifier.padding(horizontal = 20.dp) else Modifier).fillMaxWidth().press(0.98f) { Store.push(Route.IdentityR(i.id)) }
+    .glass(RoundedCornerShape(18.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+    SmallCard(i, kindIcon(i), 40.dp, 28.dp)
+    Spacer(Modifier.width(12.dp))
+    Column(Modifier.weight(1f)) {
+      T(title, 16f, FontWeight.SemiBold, lines = 1)
+      if (sub.isNotEmpty()) T(sub, 13f, color = pal.secondary, lines = 1)
+    }
+    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = pal.tertiary)
   }
 }
 

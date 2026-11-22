@@ -1,7 +1,7 @@
 {
   "name": "account-vault",
   "version": "1.0.0",
-  "description": "账号仓库·加固版 - 端到端加密的账号密码本地管理工具",
+  "description": "账号仓库 - 本地账号管理工具，数据仅存本机（可选加密同步）",
   "main": "main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"

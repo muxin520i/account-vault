@@ -1,7 +1,6 @@
 package com.accountvault.app
 
 import android.text.format.DateUtils
-import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -45,12 +44,12 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.CloudSync
 import androidx.compose.material.icons.outlined.Contrast
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.Fingerprint
+import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material.icons.outlined.PlaylistAdd
 import androidx.compose.material.icons.outlined.SwapVert
-import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Upload
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
@@ -119,26 +118,7 @@ fun SettingsSheet() {
 @Composable
 fun SettingsMain(go: (String) -> Unit) {
   val ctx = LocalContext.current
-  val activity = ctx as? FragmentActivity
   var themeMenu by remember { mutableStateOf(false) }
-  var pwDialog by remember { mutableStateOf(false) }
-  var bioDialog by remember { mutableStateOf(false) }
-  var bioState by remember { mutableStateOf(activity != null && Biometric.isEnabled(ctx)) }
-  var bioMsg by remember { mutableStateOf("") }
-  var encExporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
-    if (uri != null) {
-      val data = Vault.exportEncrypted()
-      if (data != null) runCatching { ctx.contentResolver.openOutputStream(uri)!!.use { it.write(data.toByteArray()) } }
-        .onSuccess { Store.show("加密备份已导出") }.onFailure { Store.show("导出失败") }
-    }
-  }
-  val encImporter = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-    if (uri != null) {
-      val text = runCatching { ctx.contentResolver.openInputStream(uri)!!.use { String(it.readBytes()) } }.getOrNull()
-      if (text != null && Vault.importEncrypted(text)) { Store.loadFromVault(); Store.show("加密备份已导入") }
-      else Store.show("这不是有效的账号仓库加密备份")
-    }
-  }
   val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
     if (uri != null) runCatching { ctx.contentResolver.openOutputStream(uri)!!.use { it.write(Store.backupJSON().toByteArray()) } }
       .onSuccess { Store.show("备份已导出") }.onFailure { Store.show("导出失败") }
@@ -180,34 +160,12 @@ fun SettingsMain(go: (String) -> Unit) {
           SettingRow(Icons.Outlined.PlaylistAdd, "载入示例") { Store.loadDemo() }
         }
       }
-      FormGroup(footer = "数据在密码解锁后才可读取，锁定后内存中的明文会被立即清空。") {
-        SettingRow(Icons.Outlined.Lock, "修改密码", chevron = true) { pwDialog = true }
-      }
-      if (activity != null && Biometric.available(ctx)) {
-        FormGroup(footer = bioMsg.ifEmpty { "用指纹或人脸代替输入密码；开启时需验证当前密码。录入新指纹后需重新开启。" }) {
-          SettingRow(Icons.Outlined.Fingerprint, "指纹 / 人脸解锁", trailing = {
-            Switch(bioState, { on ->
-              if (on) {
-                if (Vault.state == Vault.State.UNLOCKED) bioDialog = true
-                else { bioMsg = "请先用密码解锁后再开启"; Store.show("请先解锁") }
-              } else {
-                Biometric.disable(ctx); bioState = false; bioMsg = ""; Store.show("已关闭生物识别解锁")
-              }
-            }, colors = SwitchDefaults.colors(checkedTrackColor = hex("#34c759"), checkedThumbColor = Color.White, checkedBorderColor = Color.Transparent))
-          }) {
-            if (!bioState) {
-              if (Vault.state == Vault.State.UNLOCKED) bioDialog = true
-              else Store.show("请先解锁")
-            } else {
-              Biometric.disable(ctx); bioState = false; Store.show("已关闭生物识别解锁")
-            }
-          }
+      FormGroup(footer = "在 GitHub Releases 下载，直接覆盖安装，数据不会丢失。") {
+        val ver = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() }
+        val uri = LocalUriHandler.current
+        SettingRow(Icons.Outlined.NewReleases, "下载新版本", trailing = { if (ver != null) T("当前 $ver", 14f, color = pal.secondary) }, chevron = true) {
+          runCatching { uri.openUri("https://github.com/muxin520i/account-vault/releases/latest") }
         }
-      }
-      FormGroup(footer = "加密备份用密码加密，只有账号仓库能解开。") {
-        SettingRow(Icons.Outlined.Upload, "导出加密备份") { encExporter.launch("账号仓库-加密备份.avbackup") }
-        Divider()
-        SettingRow(Icons.Outlined.Download, "导入加密备份") { encImporter.launch(arrayOf("application/octet-stream", "text/plain")) }
       }
       Column(Modifier.fillMaxWidth().padding(top = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         T("账号仓库", 15f, FontWeight.SemiBold)
@@ -215,80 +173,6 @@ fun SettingsMain(go: (String) -> Unit) {
       }
     }
   }
-  if (pwDialog) ChangePasswordDialog({ pwDialog = false }) { ok ->
-    pwDialog = false
-    if (ok && activity != null) {
-      Biometric.disable(ctx) // 密码变更后旧密文失效，需重新开启
-      bioState = false; bioMsg = ""
-    }
-    Store.show(if (ok) "密码已修改（生物识别解锁如有开启需重新开启）" else "修改失败：当前密码错误")
-  }
-  if (bioDialog && activity != null) BiometricEnableDialog(activity, { bioDialog = false }) { ok, msg ->
-    bioDialog = false
-    bioState = ok
-    bioMsg = if (ok) "已开启，解锁时可用指纹或人脸" else msg
-    Store.show(if (ok) "已开启指纹 / 人脸解锁" else msg)
-  }
-}
-
-@Composable
-private fun BiometricEnableDialog(
-  activity: FragmentActivity,
-  onDismiss: () -> Unit,
-  onDone: (Boolean, String) -> Unit,
-) {
-  var pass by remember { mutableStateOf("") }
-  var err by remember { mutableStateOf("") }
-  androidx.compose.material3.AlertDialog(
-    onDismissRequest = onDismiss,
-    title = { T("开启生物识别解锁", 18f, FontWeight.SemiBold) },
-    text = {
-      Column {
-        T("验证当前密码后，将用系统安全芯片加密保存，解锁时可用指纹或人脸代替输入密码。", 13f, color = pal.secondary)
-        Spacer(Modifier.height(10.dp))
-        SecretField(pass, { pass = it; err = "" }, "当前密码")
-        if (err.isNotEmpty()) T(err, 13f, color = pal.red)
-      }
-    },
-    confirmButton = {
-      androidx.compose.material3.TextButton(onClick = {
-        if (pass.isBlank()) { err = "请输入当前密码"; return@TextButton }
-        Biometric.enable(activity, pass, onOk = { onDone(true, "") }, onErr = { err = it })
-      }) { T("开启", 14f) }
-    },
-    dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { T("取消", 14f) } },
-  )
-}
-
-@Composable
-private fun ChangePasswordDialog(onDismiss: () -> Unit, onDone: (Boolean) -> Unit) {
-  var old by remember { mutableStateOf("") }
-  var nw by remember { mutableStateOf("") }
-  var nw2 by remember { mutableStateOf("") }
-  var err by remember { mutableStateOf("") }
-  androidx.compose.material3.AlertDialog(
-    onDismissRequest = onDismiss,
-    title = { T("修改密码", 18f, FontWeight.SemiBold) },
-    text = {
-      Column {
-        SecretField(old, { old = it; err = "" }, "当前密码")
-        SecretField(nw, { nw = it; err = "" }, "新密码（至少 4 位）")
-        SecretField(nw2, { nw2 = it; err = "" }, "再次输入新密码")
-        if (err.isNotEmpty()) T(err, 13f, color = pal.red)
-      }
-    },
-    confirmButton = {
-      androidx.compose.material3.TextButton(onClick = {
-        when {
-          nw.length < 4 -> err = "新密码至少 4 位"
-          nw != nw2 -> err = "两次输入不一致"
-          else -> onDone(Vault.changePassword(old, nw))
-        }
-      }) { T("确定", 15f) }
-    },
-    dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { T("取消", 15f) } },
-    containerColor = hex("#1c1c1e"),
-  )
 }
 
 /** Long-press a row and drag it; the first card in each group shows first in the wallet. */
@@ -297,8 +181,12 @@ fun OrderPage(back: () -> Unit) {
   Column {
     SheetBar("设置", "卡片顺序", null, onLeft = back, leftIcon = true)
     FormScroll {
-      OrderGroup("email", "邮箱", null)
-      OrderGroup("phone", "手机号", "长按拖动排序，排在第一位的卡会在卡包里最先出现。")
+      // the hint goes under the last group that has cards
+      val last = listOf("login", "phone", "email").firstOrNull { t -> Store.data.identities.any { it.type == t } }
+      val hint = "长按拖动排序，排在第一位的卡会在卡包里最先出现。"
+      OrderGroup("email", "邮箱", if (last == "email") hint else null)
+      OrderGroup("phone", "手机号", if (last == "phone") hint else null)
+      OrderGroup("login", "登录", if (last == "login") hint else null)
     }
   }
 }
@@ -322,7 +210,7 @@ fun OrderGroup(type: String, title: String, footer: String?) {
   var to by remember { mutableIntStateOf(0) }
   var dy by remember { mutableFloatStateOf(0f) }
   LaunchedEffect(ids) { if (dragId == null) order = ids }
-  FormGroup(title, footer ?: if (Store.data.identities.none { it.type == "phone" }) "长按拖动排序，排在第一位的卡会在卡包里最先出现。" else null) {
+  FormGroup(title, footer) {
     order.forEachIndexed { k, id ->
       key(id) {
         val i = list.firstOrNull { it.id == id }
@@ -368,9 +256,8 @@ fun OrderGroup(type: String, title: String, footer: String?) {
                         val updated = s.identities.map { if (it.id in ranked) it.copy(order = ranked[it.id]) else it }
                         val grp = next.mapNotNull { x -> updated.firstOrNull { it.id == x } }
                         val others = updated.filter { it.type != type }
-                        val emails = if (type == "email") grp else others.filter { it.type == "email" }
-                        val phones = if (type == "phone") grp else others.filter { it.type == "phone" }
-                        s.copy(identities = emails + phones + others.filter { it.type != "email" && it.type != "phone" })
+                        val groups = KINDS.map { t -> if (type == t) grp else others.filter { it.type == t } }
+                        s.copy(identities = groups.flatten() + others.filter { it.type !in KINDS })
                       }
                     }
                   }
@@ -390,11 +277,11 @@ fun OrderGroup(type: String, title: String, footer: String?) {
               }
             }
             .padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            SmallCard(i, if (i.isPhone) Icons.Filled.SimCard else Icons.Filled.Email, 46.dp, 30.dp)
+            SmallCard(i, kindIcon(i), 46.dp, 30.dp)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
               T(Store.title(i), 16f, FontWeight.Medium, lines = 1)
-              if (i.label.isNotEmpty()) T(Store.display(i), 13f, color = pal.secondary, lines = 1)
+              if (i.label.isNotEmpty() || i.isLogin) T(Store.display(i), 13f, color = pal.secondary, lines = 1)
             }
             Icon(Icons.Filled.DragHandle, "拖动", tint = pal.tertiary)
           }

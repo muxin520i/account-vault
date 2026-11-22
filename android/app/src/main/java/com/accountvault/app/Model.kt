@@ -37,15 +37,41 @@ object MsSerializer : KSerializer<Double> {
 @Serializable
 data class Identity(
   val id: String,
-  val type: String = "email",          // "email" | "phone"
+  val type: String = "email",          // "email" | "phone" | "login"
   val value: String = "",
   val label: String = "",
   val color: String = "#0a84ff",
   val notes: String = "",
   @Serializable(with = MsSerializer::class) val updatedAt: Double? = null,
   @Serializable(with = MsSerializer::class) val order: Double? = null,
+  /** Phone only: an eSIM (no physical card). Written only when true; key omitted otherwise. */
+  val esim: Boolean? = null,
+  /** Login only: "wechat" | "apple". Key omitted for email / phone. */
+  val provider: String? = null,
+  /** Login only: id of the email / phone identity this login is bound to. Key omitted when empty. */
+  val via: String? = null,
 ) {
   val isPhone get() = type == "phone"
+  val isESim get() = isPhone && esim == true
+  val isLogin get() = type == "login"
+  val isApple get() = isLogin && provider == "apple"
+  val isWechat get() = isLogin && !isApple
+}
+
+/** Identity kinds in wallet order. */
+val KINDS = listOf("email", "phone", "login")
+fun kindRank(t: String) = KINDS.indexOf(t).let { if (it < 0) KINDS.size else it }
+
+fun providerName(p: String?) = if (p == "apple") "Apple 账户" else "微信"
+fun providerColor(p: String?) = if (p == "apple") "#1d1d1f" else "#07c160"
+
+/** 微信号: at least one char. Apple ID: an email, or a phone number with >= 5 digits. */
+fun validLogin(provider: String?, value: String): Boolean {
+  val v = value.trim()
+  if (v.isEmpty()) return false
+  if (provider != "apple") return true
+  if (Regex("""^[^\s@]+@[^\s@]+\.[^\s@]+$""").matches(v)) return true
+  return !v.contains('@') && v.count { it.isDigit() } >= 5 && v.all { it.isDigit() || it in " +-()" }
 }
 
 @Serializable
@@ -59,6 +85,8 @@ data class Account(
   val handle: String? = null,
   @Serializable(with = MsSerializer::class) val createdAt: Double = nowMS(),
   @Serializable(with = MsSerializer::class) val updatedAt: Double? = null,
+  /** Custom / App Store icon: data:image/png|jpeg;base64 URL of a square image (<= 128 px). Omitted when absent. */
+  val icon: String? = null,
 )
 
 @Serializable
@@ -79,7 +107,18 @@ val JSON = Json {
 
 fun decodeAtlas(text: String): AtlasData {
   val d = JSON.decodeFromString(AtlasData.serializer(), text)
-  return d.copy(accounts = d.accounts.map { if (it.handle != null && it.handle.isEmpty()) it.copy(handle = null) else it })
+  return d.copy(identities = d.identities.map { i ->
+    var x = i
+    if (x.esim == false) x = x.copy(esim = null)
+    if (x.provider != null && x.provider!!.isBlank()) x = x.copy(provider = null)
+    if (x.via != null && x.via!!.isBlank()) x = x.copy(via = null)
+    x
+  }, accounts = d.accounts.map { a ->
+    var x = a
+    if (x.handle != null && x.handle!!.isEmpty()) x = x.copy(handle = null)
+    if (x.icon != null && x.icon!!.isBlank()) x = x.copy(icon = null)
+    x
+  })
 }
 fun encodeAtlas(d: AtlasData): String = JSON.encodeToString(AtlasData.serializer(), d)
 
@@ -94,6 +133,25 @@ fun nowMS(): Double = System.currentTimeMillis().toDouble()
 val CATS = listOf("社交", "购物", "支付金融", "开发", "AI", "娱乐", "游戏", "出行", "工具", "加密", "其他")
 
 data class Preset(val name: String, val domain: String, val category: String, val color: String)
+
+/** An app the user added by hand (or has an account for) and its own icon, if any. */
+data class CustomApp(val preset: Preset, val icon: String?)
+
+/**
+ * The picker's "我添加的" list: the saved hand-added apps (atlas.custom rows [name, domain, category, color, icon]),
+ * then apps that have accounts, newest first. Presets and names the user removed (atlas.custom.hidden) are left out.
+ */
+fun mergeCustomApps(saved: List<List<String>>, accounts: List<Account>, hidden: Set<String>, isPreset: (String) -> Boolean): List<CustomApp> {
+  val out = ArrayList<CustomApp>(); val seen = HashSet<String>()
+  val rows = saved.map { it to it.getOrNull(4) } + accounts.reversed().map { listOf(it.name, it.domain, it.category) to it.icon }
+  for ((t, icon) in rows) {
+    val n = t.getOrNull(0)?.trim().orEmpty(); val k = n.lowercase()
+    if (k.isEmpty() || k in seen || k in hidden || isPreset(n)) continue
+    seen += k
+    out += CustomApp(Preset(n, t.getOrElse(1) { "" }, t.getOrNull(2)?.ifEmpty { null } ?: "其他", ""), icon?.takeIf { it.startsWith("data:image") })
+  }
+  return out
+}
 
 fun cleanDomain(d: String): String {
   var s = d.trim().lowercase()
@@ -126,6 +184,68 @@ fun carrier(v: String): String {
   if (p3 == "192") return "中国广电"
   return ""
 }
+
+// MARK: App Store search (itunes.apple.com/search) — mirrors app.js / the iOS app
+
+data class AppHit(
+  val trackName: String,
+  val sellerUrl: String? = null,
+  val primaryGenreName: String = "",
+  val genres: List<String> = emptyList(),
+  val genreIds: List<String> = emptyList(),
+  val artworkUrl100: String? = null,
+  val artworkUrl512: String? = null,
+) {
+  /** "支付宝-你的AI生活伙伴" -> "支付宝"; only when what is left before the dash is >= 2 chars. */
+  val name: String get() = appStoreName(trackName)
+  val domain: String get() = sellerUrl?.let { cleanDomain(it) } ?: ""
+  val category: String get() = appStoreCategory(primaryGenreName, genres, genreIds)
+  /** big artwork to download for the stored icon */
+  val artwork: String? get() = artworkUrl512?.takeIf { it.isNotBlank() } ?: artworkUrl100?.replace("100x100", "256x256")
+}
+
+fun appStoreURL(term: String): String =
+  "https://itunes.apple.com/search?term=" + java.net.URLEncoder.encode(term.trim(), "UTF-8") + "&country=cn&entity=software&limit=8"
+
+fun appStoreName(raw: String): String {
+  val t = raw.trim()
+  val m = Regex("""\s*[-–—]""").find(t) ?: return t
+  val head = t.substring(0, m.range.first).trim()
+  return if (head.length >= 2) head else t
+}
+
+fun appStoreCategory(primary: String, genres: List<String>, ids: List<String> = emptyList()): String {
+  val byName = mapOf(
+    "Social Networking" to "社交", "社交" to "社交",
+    "Shopping" to "购物", "购物" to "购物",
+    "Finance" to "支付金融", "财务" to "支付金融",
+    "Developer Tools" to "开发", "开发工具" to "开发",
+    "Games" to "游戏", "游戏" to "游戏",
+    "Entertainment" to "娱乐", "娱乐" to "娱乐", "Music" to "娱乐", "音乐" to "娱乐", "Video" to "娱乐",
+    "Photo & Video" to "娱乐", "摄影与录像" to "娱乐",
+    "Travel" to "出行", "旅游" to "出行", "旅行" to "出行", "Navigation" to "出行", "导航" to "出行",
+  )
+  val byId = mapOf("6005" to "社交", "6024" to "购物", "6015" to "支付金融", "6026" to "开发", "6014" to "游戏",
+    "6016" to "娱乐", "6011" to "娱乐", "6008" to "娱乐", "6003" to "出行", "6010" to "出行")
+  byName[primary.trim()]?.let { return it }
+  for (g in genres) byName[g.trim()]?.let { return it }
+  for (i in ids) byId[i.trim()]?.let { return it }
+  return "工具"
+}
+
+fun parseAppStore(text: String): List<AppHit> = runCatching {
+  val root = JSON.parseToJsonElement(text) as? kotlinx.serialization.json.JsonObject ?: return emptyList()
+  val arr = root["results"] as? kotlinx.serialization.json.JsonArray ?: return emptyList()
+  fun kotlinx.serialization.json.JsonObject.str(k: String) = (this[k] as? JsonPrimitive)?.takeIf { it.isString }?.content
+  fun kotlinx.serialization.json.JsonObject.list(k: String) =
+    (this[k] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.content } ?: emptyList()
+  arr.mapNotNull { e ->
+    val o = e as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+    val n = o.str("trackName")?.trim().orEmpty()
+    if (n.isEmpty()) null
+    else AppHit(n, o.str("sellerUrl"), o.str("primaryGenreName").orEmpty(), o.list("genres"), o.list("genreIds"), o.str("artworkUrl100"), o.str("artworkUrl512"))
+  }
+}.getOrDefault(emptyList())
 
 /** Natural, locale-aware-ish name order (like localizedStandardCompare). */
 val nameOrder: Comparator<String> = run {

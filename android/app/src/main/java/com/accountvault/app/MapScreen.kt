@@ -64,15 +64,17 @@ fun MapScreen() {
   LaunchedEffect(focus) { if (focus != null) hap(TICK) }
 
   val all = Store.data.identities
-  val ids = all.filter { it.type == "email" } + all.filter { it.type == "phone" }
+  // groups: 邮箱, 手机号, 登录 (anything unknown goes last, with the logins)
+  val ids = all.filter { it.type == "email" } + all.filter { it.type == "phone" } + all.filter { it.type != "email" && it.type != "phone" }
   val rank = ids.withIndex().associate { it.value.id to it.index }
   val apps = Store.data.accounts.sortedWith(Comparator { x, y ->
     val a = x.identityIds.mapNotNull { rank[it] }.minOrNull() ?: 999; val b = y.identityIds.mapNotNull { rank[it] }.minOrNull() ?: 999
     if (a != b) a - b else nameOrder.compare(x.name, y.name)
   })
   val cardH = 64f; val cardGap = 12f; val appH = 46f; val appGap = 8f; val groupGap = 30f
-  val emails = all.count { it.type == "email" }
-  fun idY(k: Int) = k * (cardH + cardGap) + (if (k >= emails && emails > 0) groupGap else 0f) + 22f
+  // a gap (with its title) before each group that is not the first one shown
+  val starts = listOf("email", "phone").map { t -> ids.indexOfFirst { it.type == t } } + ids.indexOfFirst { it.type != "email" && it.type != "phone" }
+  fun idY(k: Int) = k * (cardH + cardGap) + starts.count { it in 1..k } * groupGap + 22f
   fun appY(j: Int) = j * (appH + appGap) + 22f
   val height = maxOf(idY(maxOf(ids.size - 1, 0)) + cardH, appY(maxOf(apps.size - 1, 0)) + appH) + 10f
 
@@ -110,7 +112,9 @@ fun MapScreen() {
       }
 
       if (ids.any { it.type == "email" }) T("邮箱", 12f, FontWeight.SemiBold, pal.secondary, Modifier.offset(18.dp, 0.dp))
-      ids.indexOfFirst { it.type == "phone" }.takeIf { it >= 0 }?.let { k -> T("手机号", 12f, FontWeight.SemiBold, pal.secondary, Modifier.offset(18.dp, (idY(k) - 22).dp)) }
+      listOf("手机号" to starts[1], "登录" to starts[2]).forEach { (name, k) ->
+        if (k >= 0) T(name, 12f, FontWeight.SemiBold, pal.secondary, Modifier.offset(18.dp, (idY(k) - 22).dp))
+      }
 
       ids.forEachIndexed { k, i ->
         val p = ease((t - k * 0.05f) / 0.5f)
@@ -127,7 +131,7 @@ fun MapScreen() {
           .width((width - 16 - rx).dp).height(appH.dp).press { Store.push(Route.AccountR(a.id)) }
           .clip(RoundedCornerShape(14.dp)).background(pal.glass).padding(horizontal = 8.dp),
           verticalAlignment = Alignment.CenterVertically) {
-          AppIcon(a.name, a.domain, 30.dp); Spacer(Modifier.width(8.dp))
+          AppIcon(a, 30.dp); Spacer(Modifier.width(8.dp))
           T(a.handle?.let { Store.handleText(it) } ?: a.name, 13f, FontWeight.Medium, lines = 1)
         }
       }
@@ -142,10 +146,12 @@ fun MiniCard(i: Identity, w: Dp, h: Dp) {
   Column(Modifier.size(w, h).shadow(10.dp, CardShape(i.isPhone), ambientColor = c, spotColor = c).skin(i.color, CardShape(i.isPhone)).padding(horizontal = 11.dp),
     verticalArrangement = Arrangement.Center) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.graphicsLayer { alpha = 0.85f }) {
-      Icon(if (i.isPhone) Icons.Filled.SimCard else Icons.Filled.Email, null, Modifier.size(12.dp), tint = Color.White)
+      if (i.isESim) T("eSIM", 9f, FontWeight.Bold, Color.White, lines = 1)
+      else if (i.isLogin) LoginGlyph(i, 13.dp)
+      else Icon(kindIcon(i), null, Modifier.size(12.dp), tint = Color.White)
       Spacer(Modifier.width(5.dp)); T("$n", 13f, FontWeight.Bold, Color.White)
     }
     T(Store.title(i), 14f, FontWeight.SemiBold, Color.White, lines = 1)
-    if (i.label.isNotEmpty()) T(Store.display(i), 11f, color = Color.White.copy(alpha = 0.75f), lines = 1)
+    if (i.label.isNotEmpty() || i.isLogin) T(Store.display(i), 11f, color = Color.White.copy(alpha = 0.75f), lines = 1)
   }
 }

@@ -36,21 +36,21 @@ jobs:
         env:
           ATLAS_KEYSTORE: ${{ runner.temp }}/accountvault.jks
           ATLAS_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ATLAS_BUILD: 23
-          ATLAS_VERSION: 2.4
+          ATLAS_BUILD: 24
+          ATLAS_VERSION: 2.5
         run: |
           ./gradlew --no-daemon assembleRelease
           APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           "$BT/apksigner" verify --print-certs "$APK"
-          cp "$APK" "$GITHUB_WORKSPACE/account-vault-native-v2.4.apk"
+          cp "$APK" "$GITHUB_WORKSPACE/account-vault-native-v2.5.apk"
 
       - name: Upload APK to Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.4
-          name: 账号仓库 v2.4（三端删立即锁定 · APK/IPA 指纹人脸解锁）
-          files: account-vault-native-v2.4.apk
+          tag_name: v2.5
+          name: 账号仓库 v2.5（删应用内密码 · 启动开屏图 · 同步上游v2.2新功能）
+          files: account-vault-native-v2.5.apk
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

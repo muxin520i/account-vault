@@ -31,8 +31,9 @@ struct WalletView: View {
     .padding(.horizontal, 20)
   }
   var summary: String {
-    let e = store.index.emails.count, p = store.data.identities.count - e, a = store.data.accounts.count
-    return store.data.identities.isEmpty && a == 0 ? "先添加一个邮箱或手机号" : "\(e) 个邮箱、\(p) 个手机号，关联着 \(a) 个网站与 App"
+    let e = store.index.emails.count, p = store.index.phones.count, l = store.index.logins.count, a = store.data.accounts.count
+    if store.data.identities.isEmpty && a == 0 { return "先添加一个邮箱或手机号" }
+    return "\(e) 个邮箱、\(p) 个手机号" + (l > 0 ? "、\(l) 个登录账号" : "") + "，关联着 \(a) 个网站与 App"
   }
 
   // coverflow of identity cards
@@ -67,7 +68,7 @@ struct WalletView: View {
     .safeAreaPadding(.horizontal, 34)
     .sensoryFeedback(.selection, trigger: store.activeID)
     .id(store.kind)
-    .transition(.asymmetric(insertion: .move(edge: store.kind == "phone" ? .trailing : .leading).combined(with: .opacity), removal: .opacity))
+    .transition(.asymmetric(insertion: .move(edge: store.kind == "email" ? .leading : .trailing).combined(with: .opacity), removal: .opacity))
   }
   var dots: some View {
     HStack(spacing: 6) {
@@ -109,6 +110,7 @@ struct TopButtons: ToolbarContent {
         Button { store.route = .picker(store.active?.id) } label: { Label("添加网站或 App", systemImage: "square.grid.2x2") }
         Button { store.route = .newIdentity("email") } label: { Label("添加邮箱", systemImage: "envelope") }
         Button { store.route = .newIdentity("phone") } label: { Label("添加手机号", systemImage: "simcard") }
+        Button { store.route = .newIdentity("login") } label: { Label("添加微信或 Apple 账号", systemImage: "person.badge.key") }
       } label: { Image(systemName: "plus") }
       Button { store.route = .settings } label: { Image(systemName: "ellipsis") }
     }
@@ -120,7 +122,7 @@ struct KindSwitch: View {
   @Namespace private var ns
   var body: some View {
     HStack(spacing: 0) {
-      ForEach([("email", "邮箱", "envelope"), ("phone", "手机号", "simcard")], id: \.0) { t in
+      ForEach([("email", "邮箱", "envelope"), ("phone", "手机号", "simcard"), ("login", "登录", "person.badge.key")], id: \.0) { t in
         let k = t.0, name = t.1, icon = t.2
         let on = store.kind == k
         Button {
@@ -128,8 +130,8 @@ struct KindSwitch: View {
         } label: {
           HStack(spacing: 6) {
             Image(systemName: icon).font(.system(size: 14, weight: .semibold))
-            Text(name).font(.system(size: 15, weight: .semibold))
-            Text("\(k == "phone" ? store.index.phones.count : store.index.emails.count)").font(.system(size: 13, weight: .medium)).foregroundStyle(.secondary)
+            Text(name).font(.system(size: 15, weight: .semibold)).lineLimit(1)
+            Text("\(k == "phone" ? store.index.phones.count : k == "login" ? store.index.logins.count : store.index.emails.count)").font(.system(size: 13, weight: .medium)).foregroundStyle(.secondary)
           }
           .frame(maxWidth: .infinity).frame(height: 36)
           .foregroundStyle(on ? .primary : .secondary)
@@ -154,7 +156,7 @@ struct AddCard: View {
     Button { store.route = .newIdentity(kind) } label: {
       VStack(spacing: 10) {
         Image(systemName: "plus").font(.system(size: 26, weight: .medium))
-        Text(store.data.identities.isEmpty ? "从一个邮箱或手机号开始" : (kind == "phone" ? "添加手机号" : "添加邮箱")).font(.system(size: 16, weight: .semibold))
+        Text(kind == "login" ? "添加微信或 Apple 账号" : store.data.identities.isEmpty ? "从一个邮箱或手机号开始" : (kind == "phone" ? "添加手机号" : "添加邮箱")).font(.system(size: 16, weight: .semibold))
       }
       .foregroundStyle(.secondary)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -178,7 +180,7 @@ struct AppGrid: View {
       HStack(alignment: .firstTextBaseline) {
         VStack(alignment: .leading, spacing: 2) {
           Text(i.map { store.title($0) } ?? "全部网站与 App").font(.system(size: 22, weight: .bold)).lineLimit(1)
-          if i != nil { Text("用它注册或绑定的 \(list.count) 个网站与 App").font(.system(size: 13)).foregroundStyle(.secondary) }
+          if let i { Text((i.isLogin ? "用它登录的 " : "用它注册或绑定的 ") + "\(list.count) 个网站与 App").font(.system(size: 13)).foregroundStyle(.secondary) }
         }
         Spacer()
         Button { store.route = .picker(i?.id) } label: { Label("添加", systemImage: "plus").font(.system(size: 14, weight: .semibold)) }
@@ -188,7 +190,7 @@ struct AppGrid: View {
         ForEach(shown) { a in
           Button { store.route = .account(a.id) } label: {
             VStack(spacing: 6) {
-              AppIcon(name: a.name, domain: a.domain, size: 58)
+              AppIcon(name: a.name, domain: a.domain, icon: a.icon, size: 58)
                 .bakedShadow(RoundedRectangle(cornerRadius: 58 * 0.235, style: .continuous), key: "icon58" + a.name + a.domain,
                              color: brandColor(name: a.name, domain: a.domain).opacity(0.35), radius: 8, y: 4)
               Text(a.handle.map { store.handleText($0) } ?? a.name).font(.system(size: 12)).lineLimit(1).foregroundStyle(.primary)

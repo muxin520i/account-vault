@@ -9,8 +9,8 @@ adb shell settings put system screen_off_timeout 600000 || true
 adb shell cmd uimode night yes || true
 shot() {
   name=$1; shift
-  adb shell am force-stop dev.huichen.atlas
-  adb shell am start -W -n dev.huichen.atlas/.MainActivity "$@"
+  adb shell am force-stop com.accountvault.app
+  adb shell am start -W -n com.accountvault.app/.MainActivity "$@"
   sleep 7
   adb exec-out screencap -p > "$OUT/$name.png"
 }
