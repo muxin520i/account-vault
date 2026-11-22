@@ -31,14 +31,14 @@ namespace AccountVault
 
             _name = Field("网站 / 服务名称", 20, src?.name ?? "");
             _domain = Field("域名（如 github.com）", 82, src?.domain ?? "");
-            _cat = new ComboBox { Bounds = new Point(20, 152), Size = new Size(460, 30), DropDownStyle = ComboBoxStyle.DropDown, BackColor = Color.FromArgb(44, 44, 48), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            _cat = new ComboBox { Location = new Point(20, 152), Size = new Size(460, 30), DropDownStyle = ComboBoxStyle.DropDown, BackColor = Color.FromArgb(44, 44, 48), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
             _cat.Items.AddRange(Presets.Categories);
             _cat.Text = src?.category ?? "其他";
 
-            var idLabel = new Label { Text = "关联身份（邮箱 / 手机号）", Bounds = new Point(20, 192), Size = new Size(460, 22), ForeColor = Color.FromArgb(160, 160, 170) };
+            var idLabel = new Label { Text = "关联身份（邮箱 / 手机号）", Location = new Point(20, 192), Size = new Size(460, 22), ForeColor = Color.FromArgb(160, 160, 170) };
             _ids = new CheckedListBox
             {
-                Bounds = new Point(20, 218), Size = new Size(460, 120),
+                Location = new Point(20, 218), Size = new Size(460, 120),
                 BackColor = Color.FromArgb(44, 44, 48), ForeColor = Color.White,
                 BorderStyle = BorderStyle.FixedSingle,
             };
@@ -46,15 +46,15 @@ namespace AccountVault
 
             _notes = new TextBox
             {
-                Bounds = new Point(20, 356), Size = new Size(460, 70), Multiline = true,
+                Location = new Point(20, 356), Size = new Size(460, 70), Multiline = true,
                 BackColor = Color.FromArgb(44, 44, 48), ForeColor = Color.White,
                 BorderStyle = BorderStyle.FixedSingle, ScrollBars = ScrollBars.Vertical,
                 Text = src?.notes ?? "", PlaceholderText = "备注（可写账号提示、二次验证位置等，不要写明文密码）",
             };
 
-            var ok = new Button { Text = "保存", Bounds = new Point(290, 470), Size = new Size(100, 36), DialogResult = DialogResult.OK, BackColor = Color.FromArgb(10, 132, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            var ok = new Button { Text = "保存", Location = new Point(290, 470), Size = new Size(100, 36), DialogResult = DialogResult.OK, BackColor = Color.FromArgb(10, 132, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
             ok.FlatAppearance.BorderSize = 0;
-            var cancel = new Button { Text = "取消", Bounds = new Point(400, 470), Size = new Size(80, 36), DialogResult = DialogResult.Cancel, BackColor = Color.FromArgb(60, 60, 66), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            var cancel = new Button { Text = "取消", Location = new Point(400, 470), Size = new Size(80, 36), DialogResult = DialogResult.Cancel, BackColor = Color.FromArgb(60, 60, 66), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
             cancel.FlatAppearance.BorderSize = 0;
             ok.Click += Ok_Click;
 
@@ -65,8 +65,8 @@ namespace AccountVault
 
         private TextBox Field(string label, int y, string text)
         {
-            var lab = new Label { Text = label, Bounds = new Point(20, y - 20), Size = new Size(460, 18), ForeColor = Color.FromArgb(160, 160, 170) };
-            var t = new TextBox { Bounds = new Point(20, y), Size = new Size(460, 32), Text = text, BackColor = Color.FromArgb(44, 44, 48), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+            var lab = new Label { Text = label, Location = new Point(20, y - 20), Size = new Size(460, 18), ForeColor = Color.FromArgb(160, 160, 170) };
+            var t = new TextBox { Location = new Point(20, y), Size = new Size(460, 32), Text = text, BackColor = Color.FromArgb(44, 44, 48), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
             Controls.Add(lab);
             return t;
         }
