@@ -2,14 +2,13 @@ name: 编译 iOS IPA
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'ios/**'
-      - 'www/**'
-      - '.github/workflows/build-ios.yml'
 
 permissions:
   contents: write
+
+concurrency:
+  group: ios-build
+  cancel-in-progress: false
 
 jobs:
   build-ios:
