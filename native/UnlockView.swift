@@ -6,6 +6,7 @@ struct UnlockView: View {
   @State private var pass = ""
   @State private var pass2 = ""
   @State private var err = ""
+  @State private var bioEnabled = Biometric.isEnabled()
   /// 解锁/创建成功后调用，参数为是否为首次设置
   var onUnlocked: (Bool) -> Void
 
@@ -58,6 +59,32 @@ struct UnlockView: View {
             .foregroundColor(.white).cornerRadius(12)
         }
         .padding(.horizontal, 40).padding(.top, 10)
+
+        if !setup && bioEnabled && Biometric.available() {
+          Button(action: bioUnlock) {
+            HStack(spacing: 8) {
+              Image(systemName: "faceid").font(.system(size: 20))
+              Text("指纹 / 人脸解锁").fontWeight(.semibold)
+            }
+            .frame(maxWidth: .infinity).padding().overlay(
+              RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.5), lineWidth: 1)
+            )
+            .foregroundColor(.white)
+          }
+          .padding(.horizontal, 40)
+        }
+      }
+    }
+  }
+
+  private func bioUnlock() {
+    err = ""
+    Biometric.unlock(reason: "验证以解锁账号仓库") { result in
+      switch result {
+      case .success(let p):
+        if vault.unlock(p) { onUnlocked(false) } else { err = "生物识别凭据已失效，请用密码解锁" }
+      case .failure(let msg):
+        err = msg
       }
     }
   }

@@ -1574,14 +1574,6 @@
     if (isSetup) $('#vPass2', gateEl).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
   }
 
-  function showLock() { showGate('unlock', startApp); }
-
-  // 手动锁定入口由事件委托处理
-  document.addEventListener('click', e => {
-    const t = e.target.closest('[data-act="lock"]');
-    if (t) { e.stopPropagation(); Vault.lock(); state = null; showLock(); }
-  }, true);
-
   // boot：依保险库状态决定走解锁 / 创建 / 直接启动
   if (!Vault.available) {
     // 无 WebCrypto：拒绝以明文使用，保护用户

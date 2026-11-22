@@ -1,6 +1,7 @@
 package com.accountvault.app
 
 import android.text.format.DateUtils
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -46,6 +47,7 @@ import androidx.compose.material.icons.outlined.CloudSync
 import androidx.compose.material.icons.outlined.Contrast
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.PlaylistAdd
 import androidx.compose.material.icons.outlined.SwapVert
 import androidx.compose.material.icons.outlined.Lock
@@ -117,8 +119,12 @@ fun SettingsSheet() {
 @Composable
 fun SettingsMain(go: (String) -> Unit) {
   val ctx = LocalContext.current
+  val activity = ctx as? ComponentActivity
   var themeMenu by remember { mutableStateOf(false) }
   var pwDialog by remember { mutableStateOf(false) }
+  var bioDialog by remember { mutableStateOf(false) }
+  var bioState by remember { mutableStateOf(activity != null && Biometric.isEnabled(ctx)) }
+  var bioMsg by remember { mutableStateOf("") }
   var encExporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
     if (uri != null) {
       val data = Vault.exportEncrypted()
@@ -176,10 +182,26 @@ fun SettingsMain(go: (String) -> Unit) {
       }
       FormGroup(footer = "数据在密码解锁后才可读取，锁定后内存中的明文会被立即清空。") {
         SettingRow(Icons.Outlined.Lock, "修改密码", chevron = true) { pwDialog = true }
-        Divider()
-        SettingRow(Icons.Outlined.Lock, "立即锁定", chevron = true) {
-          Store.clearOnLock(); Vault.lock(); Store.popAll()
-          Store.onLocked?.invoke()
+      }
+      if (activity != null && Biometric.available(ctx)) {
+        FormGroup(footer = bioMsg.ifEmpty { "用指纹或人脸代替输入密码；开启时需验证当前密码。录入新指纹后需重新开启。" }) {
+          SettingRow(Icons.Outlined.Fingerprint, "指纹 / 人脸解锁", trailing = {
+            Switch(bioState, { on ->
+              if (on) {
+                if (Vault.state == Vault.State.UNLOCKED) bioDialog = true
+                else { bioMsg = "请先用密码解锁后再开启"; Store.show("请先解锁") }
+              } else {
+                Biometric.disable(ctx); bioState = false; bioMsg = ""; Store.show("已关闭生物识别解锁")
+              }
+            }, colors = SwitchDefaults.colors(checkedTrackColor = hex("#34c759"), checkedThumbColor = Color.White, checkedBorderColor = Color.Transparent))
+          }) {
+            if (!bioState) {
+              if (Vault.state == Vault.State.UNLOCKED) bioDialog = true
+              else Store.show("请先解锁")
+            } else {
+              Biometric.disable(ctx); bioState = false; Store.show("已关闭生物识别解锁")
+            }
+          }
         }
       }
       FormGroup(footer = "加密备份用密码加密，只有账号仓库能解开。") {
@@ -195,8 +217,47 @@ fun SettingsMain(go: (String) -> Unit) {
   }
   if (pwDialog) ChangePasswordDialog({ pwDialog = false }) { ok ->
     pwDialog = false
-    Store.show(if (ok) "密码已修改" else "修改失败：当前密码错误")
+    if (ok && activity != null) {
+      Biometric.disable(ctx) // 密码变更后旧密文失效，需重新开启
+      bioState = false; bioMsg = ""
+    }
+    Store.show(if (ok) "密码已修改（生物识别解锁如有开启需重新开启）" else "修改失败：当前密码错误")
   }
+  if (bioDialog && activity != null) BiometricEnableDialog(activity, { bioDialog = false }) { ok, msg ->
+    bioDialog = false
+    bioState = ok
+    bioMsg = if (ok) "已开启，解锁时可用指纹或人脸" else msg
+    Store.show(if (ok) "已开启指纹 / 人脸解锁" else msg)
+  }
+}
+
+@Composable
+private fun BiometricEnableDialog(
+  activity: ComponentActivity,
+  onDismiss: () -> Unit,
+  onDone: (Boolean, String) -> Unit,
+) {
+  var pass by remember { mutableStateOf("") }
+  var err by remember { mutableStateOf("") }
+  androidx.compose.material3.AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { T("开启生物识别解锁", 18f, FontWeight.SemiBold) },
+    text = {
+      Column {
+        T("验证当前密码后，将用系统安全芯片加密保存，解锁时可用指纹或人脸代替输入密码。", 13f, color = pal.secondary)
+        Spacer(Modifier.height(10.dp))
+        SecretField(pass, { pass = it; err = "" }, "当前密码")
+        if (err.isNotEmpty()) T(err, 13f, color = pal.red)
+      }
+    },
+    confirmButton = {
+      androidx.compose.material3.TextButton(onClick = {
+        if (pass.isBlank()) { err = "请输入当前密码"; return@TextButton }
+        Biometric.enable(activity, pass, onOk = { onDone(true, "") }, onErr = { err = it })
+      }) { T("开启") }
+    },
+    dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { T("取消") } },
+  )
 }
 
 @Composable

@@ -17,10 +17,6 @@ struct EncBackupDoc: FileDocument {
   func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: data) }
 }
 
-extension Notification.Name {
-  static let accountVaultLocked = Notification.Name("accountVaultLocked")
-}
-
 struct SettingsSheet: View {
   @Environment(Store.self) var store
   @EnvironmentObject var sync: Sync
@@ -31,6 +27,10 @@ struct SettingsSheet: View {
   @State private var encExporting = false
   @State private var encImporting = false
   @State private var encDoc = EncBackupDoc(data: Data())
+  @State private var bioEnabled = Biometric.isEnabled()
+  @State private var bioAskPass = false
+  @State private var bioPass = ""
+  @State private var bioMsg = ""
 
   var body: some View {
     NavigationStack {
@@ -62,10 +62,21 @@ struct SettingsSheet: View {
         } footer: { Text("备份是 JSON 文件，和网页版通用。") }
         Section {
           NavigationLink { ChangePasswordView() } label: { Label("修改密码", systemImage: "lock.rotation") }
-          Button { store.clearOnLock(); Vault.shared.lock(); NotificationCenter.default.post(name: .accountVaultLocked, object: nil) } label: {
-            Label("立即锁定", systemImage: "lock.fill")
-          }
         } footer: { Text("数据在密码解锁后才可读取，锁定后内存中的明文会立即清空。") }
+        if Biometric.available() {
+          Section {
+            Toggle(isOn: Binding(
+              get: { bioEnabled },
+              set: { on in
+                if on {
+                  bioPass = ""; bioMsg = ""; bioAskPass = true
+                } else {
+                  Biometric.disable(); bioEnabled = false; bioMsg = ""
+                }
+              }
+            )) { Label("指纹 / 人脸解锁", systemImage: "faceid") }
+          } footer: { Text(bioMsg.isEmpty ? "开启时需验证当前密码；录入新指纹或面容后需重新开启。" : bioMsg) }
+        }
         Section {
           Button { if let s = Vault.shared.exportEncrypted() { encDoc = EncBackupDoc(data: Data(s.utf8)); encExporting = true } } label: {
             Label("导出加密备份", systemImage: "square.and.arrow.up.on.square")
@@ -99,6 +110,19 @@ struct SettingsSheet: View {
         if let d = try? Data(contentsOf: url), let s = String(data: d, encoding: .utf8), Vault.shared.importEncrypted(s) {
           store.loadFromVault(); store.show("加密备份已导入")
         } else { store.show("这不是有效的账号仓库加密备份") }
+      }
+      .alert("开启指纹 / 人脸解锁", isPresented: $bioAskPass) {
+        SecureField("当前密码", text: $bioPass)
+        Button("取消", role: .cancel) { bioPass = "" }
+        Button("开启") {
+          let p = bioPass; bioPass = ""
+          Biometric.enable(password: p, reason: "验证以开启指纹 / 人脸解锁") { ok, msg in
+            bioEnabled = ok
+            bioMsg = ok ? "已开启，解锁时可用指纹或人脸" : msg
+          }
+        }
+      } message: {
+        Text("验证当前密码后，将用系统安全芯片加密保存。")
       }
     }
   }

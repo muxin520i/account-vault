@@ -18,7 +18,10 @@ struct ChangePasswordView: View {
         Button("确定") {
           if nw.count < 4 { msg = "新密码至少 4 位"; return }
           if nw != nw2 { msg = "两次输入不一致"; return }
-          if Vault.shared.changePassword(old, nw) { dismiss() } else { msg = "当前密码错误" }
+          if Vault.shared.changePassword(old, nw) {
+            Biometric.disable() // 密码变更后旧凭据失效，需重新开启
+            dismiss()
+          } else { msg = "当前密码错误" }
         }
       }
       if !msg.isEmpty { Section { Text(msg).foregroundStyle(.red) } }

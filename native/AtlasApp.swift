@@ -20,9 +20,6 @@ struct AtlasApp: App {
               if p == .background { store.clearOnLock(); Vault.shared.lock(); unlocked = false }
               else if p == .active { Task { await sync.run() } }
             }
-            .onReceive(NotificationCenter.default.publisher(for: .accountVaultLocked)) { _ in
-              store.clearOnLock(); unlocked = false
-            }
         } else {
           UnlockView { firstSetup in
             store.loadFromVault(firstSetup: firstSetup)

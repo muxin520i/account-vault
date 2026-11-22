@@ -23,6 +23,7 @@
   <key>UIStatusBarStyle</key><string>UIStatusBarStyleLightContent</string>
   <key>UIViewControllerBasedStatusBarAppearance</key><true/>
   <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
+  <key>NSFaceIDUsageDescription</key><string>使用面容 ID 解锁账号仓库</string>
   <key>ITSAppUsesNonExemptEncryption</key><false/>
 </dict>
 </plist>

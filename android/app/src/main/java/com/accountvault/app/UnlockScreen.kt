@@ -18,6 +18,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -40,8 +41,10 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.ComponentActivity
 
 /**
  * 账号仓库 · 解锁门（背景图 + 密码）
@@ -53,6 +56,9 @@ fun UnlockGate(onUnlocked: (firstSetup: Boolean) -> Unit) {
   var pass by remember { mutableStateOf("") }
   var pass2 by remember { mutableStateOf("") }
   var err by remember { mutableStateOf("") }
+  val ctx = LocalContext.current
+  val activity = ctx as? ComponentActivity
+  val bioEnabled = !setup && activity != null && Biometric.isEnabled(ctx) && Biometric.available(ctx)
 
   MaterialTheme(colorScheme = darkColorScheme(
     primary = DarkPal.accent, background = DarkPal.bg, surface = DarkPal.glassStrong,
@@ -115,6 +121,26 @@ fun UnlockGate(onUnlocked: (firstSetup: Boolean) -> Unit) {
             Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(14.dp)),
             colors = ButtonDefaults.buttonColors(containerColor = DarkPal.accent, contentColor = Color.White),
           ) { T(if (setup) "创建保险库" else "解锁", 16f, FontWeight.SemiBold, Color.White) }
+
+          if (bioEnabled && activity != null) {
+            Spacer(Modifier.height(12.dp))
+            androidx.compose.material3.OutlinedButton(
+              onClick = {
+                err = ""
+                Biometric.unlock(activity,
+                  onPassword = { p -> if (Vault.unlock(p)) onUnlocked(false) else err = "生物识别数据已失效，请用密码解锁" },
+                  onErr = { err = it },
+                )
+              },
+              Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(14.dp)),
+              colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+              border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
+            ) {
+              Icon(Icons.Filled.Fingerprint, null, Modifier.size(20.dp), tint = Color.White)
+              Spacer(Modifier.size(8.dp))
+              T("指纹 / 人脸解锁", 15f, FontWeight.SemiBold, Color.White)
+            }
+          }
         }
       }
     }
