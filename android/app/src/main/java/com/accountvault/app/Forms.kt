@@ -200,6 +200,7 @@ fun IdentityForm(existing: Identity?, type0: String, defaultColor: String) {
   val viaOut = if (login) via else null
   val sample = when {
     login && provider == "apple" -> "name@icloud.com"
+    login && provider == "qq" -> "10001"
     login -> "wxid_atlas"
     type == "email" -> "name@example.com"
     else -> "+86 138 0000 0000"
@@ -239,7 +240,7 @@ fun IdentityForm(existing: Identity?, type0: String, defaultColor: String) {
           Segmented(listOf("email" to "邮箱", "phone" to "手机号", "login" to "登录"), type) { type = it; autoColor() }
         }
         if (login) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-          listOf("wechat", "apple").forEach { p ->
+          listOf("wechat", "qq", "apple").forEach { p ->
             val on = provider == p
             val c = hex(providerColor(p)).let { if (p == "apple" && pal.dark) Color.White else it }
             Row(Modifier.weight(1f).height(40.dp).press(0.95f) { if (!on) { hap(TICK); provider = p; autoColor() } }.clip(CircleShape)
@@ -247,18 +248,19 @@ fun IdentityForm(existing: Identity?, type0: String, defaultColor: String) {
               horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
               LoginGlyph(Identity("_", "login", provider = p), 18.dp, if (on) c else pal.secondary)
               Spacer(Modifier.width(6.dp))
-              T(if (p == "apple") "Apple" else "微信", 15f, FontWeight.SemiBold, if (on) pal.primary else pal.secondary)
+              T(when (p) { "apple" -> "Apple"; "qq" -> "QQ"; else -> "微信" }, 15f, FontWeight.SemiBold, if (on) pal.primary else pal.secondary)
             }
           }
         }
-        FormGroup(when { login && provider == "apple" -> "Apple ID"; login -> "微信号"; type == "email" -> "地址"; else -> "号码" },
-          if (login && value.isNotBlank() && !valid) "Apple ID 是邮箱或手机号。" else null) {
+        FormGroup(when { login && provider == "apple" -> "Apple ID"; login && provider == "qq" -> "QQ 号"; login -> "微信号"; type == "email" -> "地址"; else -> "号码" },
+          if (login && value.isNotBlank() && !valid) (if (provider == "qq") "QQ 号是 5 到 12 位数字，或填 QQ 邮箱。" else "Apple ID 是邮箱或手机号。") else null) {
           Field(value, { value = it }, when {
             login && provider == "apple" -> "name@icloud.com 或手机号"
+            login && provider == "qq" -> "QQ 号或 QQ 邮箱"
             login -> "wxid 或自定义微信号"
             type == "email" -> "name@example.com"
             else -> "+86 138 0000 0000"
-          }, if (login && provider == "apple") KeyboardType.Email else if (login) KeyboardType.Text else if (type == "email") KeyboardType.Email else KeyboardType.Phone)
+          }, if (login && provider == "apple") KeyboardType.Email else if (login && provider == "qq") KeyboardType.Ascii else if (login) KeyboardType.Text else if (type == "email") KeyboardType.Email else KeyboardType.Phone)
           Divider()
           Field(label, { label = it }, "标签：主力、小号、工作…")
         }
@@ -374,7 +376,7 @@ fun AccountForm(existing: Account) {
     hits = AppStore.search(q)   // a newer query cancels this one, so late results are dropped
   }
   val presetHits = if (!typed || q.isEmpty()) emptyList() else
-    (Store.customApps + Presets.all).filter { it.name.lowercase().contains(q) || (it.domain.isNotEmpty() && it.domain.contains(q)) }.distinctBy { it.name.lowercase() }.take(4)
+    (Store.customApps + Presets.all + Presets.directory).filter { siteHit(it, q) }.distinctBy { it.name.lowercase() }.take(4)
   val shownNames = presetHits.map { it.name.lowercase() }.toSet()
   val storeHits = if (!typed || q.isEmpty()) emptyList() else hits.filter { it.name.lowercase() !in shownNames }.distinctBy { it.name.lowercase() }
 
@@ -544,7 +546,7 @@ fun PickerSheet(presetIdentity: String?) {
       val q = query.trim().lowercase()
       val all = custom + Presets.all
       val mine = q.isEmpty() && cat == "我添加的"
-      val list = if (q.isNotEmpty()) all.filter { it.name.lowercase().contains(q) || it.domain.contains(q) } else when (cat) {
+      val list = if (q.isNotEmpty()) (all + Presets.directory).filter { siteHit(it, q) }.distinctBy { key(it) } else when (cat) {
         "我添加的" -> custom
         // the first 12 most-used apps (3 rows of 4), custom apps only under 我添加的
         "常用" -> Presets.popular.take(12).mapNotNull { n -> Presets.all.firstOrNull { it.name == n } }
@@ -633,7 +635,7 @@ fun PickerSheet(presetIdentity: String?) {
           dismissButton = { TextButton({ confirmRemove = null }) { Text("取消") } })
       }
       if (manual) ManualAdd(query, { manual = false }) { n, d, ic ->
-        val p = Preset(n, cleanDomain(d), presetFor(n, d)?.category ?: "其他", "")
+        val p = Preset(n, cleanDomain(d), categoryFor(n, d), "")
         Store.rememberApp(p, ic)
         if (ic != null) icons[key(p)] = ic
         if (picked.none { key(it) == key(p) }) picked.add(p)
@@ -671,7 +673,7 @@ fun PickerSheet(presetIdentity: String?) {
               }
             }
           }
-          FormGroup("用哪个邮箱、手机号注册，或用微信 / Apple 登录") {
+          FormGroup("用哪个邮箱、手机号注册，或用微信 / QQ / Apple 登录") {
             if (Store.data.identities.isEmpty()) T("还没有邮箱或手机号，先保存，之后再关联也行。", 15f, color = pal.secondary, modifier = Modifier.padding(16.dp))
             IdentityToggles(ids) { ids = it }
           }
@@ -714,9 +716,9 @@ fun ManualAdd(initial: String, onDismiss: () -> Unit, onAdd: (String, String, St
             }
           }
         }
-        Text("名称必填，填了域名会自动找图标。")
+        Text("名称必填。网址用来找图标，不知道可以不填。")
         OutlinedTextField(n, { n = it }, label = { Text("名称") }, singleLine = true)
-        OutlinedTextField(d, { d = it }, label = { Text("域名（可选）") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
+        OutlinedTextField(d, { d = it }, label = { Text("网址（可选）") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
       }
     },
     confirmButton = { TextButton({ if (n.isNotBlank()) { onAdd(n.trim(), d, icon); onDismiss() } }, enabled = n.isNotBlank()) { Text("添加") } },

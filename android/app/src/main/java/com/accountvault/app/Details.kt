@@ -138,7 +138,7 @@ fun IdentityDetail(id: String) {
     }
     // sites reached through a 微信 / Apple card bound to this number: they are affected when it changes too
     if (!i.isLogin) Store.indirectAccounts(i.id).forEach { (l, list) ->
-      SectionLabel("通过${if (l.isApple) " Apple " else "微信"}登录的 ${list.size} 个网站与 App")
+      SectionLabel("通过${if (l.isApple) " Apple " else if (l.isQQ) " QQ " else "微信"}登录的 ${list.size} 个网站与 App")
       Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         list.forEach { a -> ReelRow(a) { Store.push(Route.AccountR(a.id)) } }
       }

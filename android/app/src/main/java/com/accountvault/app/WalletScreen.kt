@@ -103,7 +103,7 @@ fun TopButtons() {
         DropdownMenuItem({ androidx.compose.material3.Text("添加网站或 App") }, { menu = false; Store.push(Route.Picker(Store.active?.id)) }, leadingIcon = { Icon(Icons.Outlined.Apps, null) })
         DropdownMenuItem({ androidx.compose.material3.Text("添加邮箱") }, { menu = false; Store.push(Route.NewIdentity("email")) }, leadingIcon = { Icon(Icons.Outlined.Email, null) })
         DropdownMenuItem({ androidx.compose.material3.Text("添加手机号") }, { menu = false; Store.push(Route.NewIdentity("phone")) }, leadingIcon = { Icon(Icons.Outlined.SimCard, null) })
-        DropdownMenuItem({ androidx.compose.material3.Text("添加微信或 Apple 账号") }, { menu = false; Store.push(Route.NewIdentity("login")) }, leadingIcon = { Icon(Icons.Outlined.Key, null) })
+        DropdownMenuItem({ androidx.compose.material3.Text("添加微信、QQ 或 Apple 账号") }, { menu = false; Store.push(Route.NewIdentity("login")) }, leadingIcon = { Icon(Icons.Outlined.Key, null) })
       }
     }
   }
@@ -223,7 +223,7 @@ fun AddCard(kind: String, modifier: Modifier = Modifier) {
       Icon(Icons.Filled.Add, null, Modifier.size(30.dp), tint = pal.secondary)
       Spacer(Modifier.height(10.dp))
       T(when {
-        kind == "login" -> "添加微信或 Apple 账号"
+        kind == "login" -> "添加微信、QQ 或 Apple 账号"
         Store.data.identities.isEmpty() -> "从一个邮箱或手机号开始"
         kind == "phone" -> "添加手机号"
         else -> "添加邮箱"

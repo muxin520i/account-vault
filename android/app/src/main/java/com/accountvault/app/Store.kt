@@ -63,7 +63,18 @@ object Store {
     privacy = prefs.getBoolean("atlas.privacy", false)
     kind = prefs.getString("atlas.kind", "email")?.takeIf { it in KINDS } ?: "email"
     theme = prefs.getString("atlas.theme", "dark") ?: "dark"
-    data = runCatching { decodeAtlas(file.readText()) }.getOrElse { demo() }
+    // Data protection: keep the last copy that opened fine (atlas.prev.json) so an update can never
+    // be the only copy; if the live file can't be read, set it aside and fall back to the last good copy.
+    val raw = if (file.exists()) runCatching { file.readText() }.getOrNull() else null
+    data = if (raw.isNullOrBlank()) demo() else runCatching { decodeAtlas(raw) }.fold(
+      onSuccess = { d ->
+        if (d.identities.isNotEmpty() || d.accounts.isNotEmpty()) runCatching { File(ctx.filesDir, "atlas.prev.json").writeText(raw) }
+        d
+      },
+      onFailure = {
+        runCatching { File(ctx.filesDir, "atlas.unreadable-${System.currentTimeMillis() / 1000}.json").writeText(raw) }
+        runCatching { decodeAtlas(File(ctx.filesDir, "atlas.prev.json").readText()) }.getOrDefault(demo())
+      })
     remember()
     activeID = deck.firstOrNull()?.id
     ready = true
@@ -108,7 +119,7 @@ object Store {
 
   // every change goes through here: snapshot for undo, stamp, persist, sync
   fun mutate(message: String? = null, undo: Boolean = true, f: (AtlasData) -> AtlasData) {
-    undoSnap = data
+    if (undo) undoSnap = data   // a silent fix-up must not replace what 撤销 restores
     data = f(data).copy(demo = null)
     save()
     if (message != null) show(message, if (undo) "撤销" else null) { undo() }

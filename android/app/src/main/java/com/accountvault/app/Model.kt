@@ -55,20 +55,25 @@ data class Identity(
   val isESim get() = isPhone && esim == true
   val isLogin get() = type == "login"
   val isApple get() = isLogin && provider == "apple"
-  val isWechat get() = isLogin && !isApple
+  val isQQ get() = isLogin && provider == "qq"
+  val isWechat get() = isLogin && !isApple && !isQQ
 }
 
 /** Identity kinds in wallet order. */
 val KINDS = listOf("email", "phone", "login")
 fun kindRank(t: String) = KINDS.indexOf(t).let { if (it < 0) KINDS.size else it }
 
-fun providerName(p: String?) = if (p == "apple") "Apple 账户" else "微信"
-fun providerColor(p: String?) = if (p == "apple") "#1d1d1f" else "#07c160"
+fun providerName(p: String?) = when (p) { "apple" -> "Apple 账户"; "qq" -> "QQ"; else -> "微信" }
+fun providerColor(p: String?) = when (p) { "apple" -> "#1d1d1f"; "qq" -> "#12b7f5"; else -> "#07c160" }
 
-/** 微信号: at least one char. Apple ID: an email, or a phone number with >= 5 digits. */
+/** 微信号: at least one char. QQ: a 5–12 digit number or an email. Apple ID: an email, or a phone number with >= 5 digits. */
 fun validLogin(provider: String?, value: String): Boolean {
   val v = value.trim()
   if (v.isEmpty()) return false
+  if (provider == "qq") {
+    val d = v.filter { it != ' ' }
+    return (d.length in 5..12 && d.all { it.isDigit() }) || Regex("""^[^\s@]+@[^\s@]+\.[^\s@]+$""").matches(v)
+  }
   if (provider != "apple") return true
   if (Regex("""^[^\s@]+@[^\s@]+\.[^\s@]+$""").matches(v)) return true
   return !v.contains('@') && v.count { it.isDigit() } >= 5 && v.all { it.isDigit() || it in " +-()" }
@@ -105,8 +110,25 @@ val JSON = Json {
   isLenient = true
 }
 
+/** Whole-file decode first; if one damaged entry breaks it, decode entry by entry and skip only that one. */
+private fun decodeLossy(text: String): AtlasData = runCatching { JSON.decodeFromString(AtlasData.serializer(), text) }.getOrElse { e ->
+  val o = runCatching { JSON.parseToJsonElement(text) as? kotlinx.serialization.json.JsonObject }.getOrNull() ?: throw e
+  fun <T> items(key: String, ser: KSerializer<T>): List<T> =
+    (o[key] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { el -> runCatching { JSON.decodeFromJsonElement(ser, el) }.getOrNull() } ?: emptyList()
+  val del = HashMap<String, Double>()
+  (o["deleted"] as? kotlinx.serialization.json.JsonObject)?.entries?.forEach { (k, v) ->
+    runCatching { (v as? JsonPrimitive)?.content?.toDoubleOrNull() } .getOrNull()?.let { del[k] = it }
+  }
+  AtlasData(
+    identities = items("identities", Identity.serializer()),
+    accounts = items("accounts", Account.serializer()),
+    deleted = del,
+    demo = (o["demo"] as? JsonPrimitive)?.content?.toBooleanStrictOrNull(),
+  )
+}
+
 fun decodeAtlas(text: String): AtlasData {
-  val d = JSON.decodeFromString(AtlasData.serializer(), text)
+  val d = decodeLossy(text)
   return d.copy(identities = d.identities.map { i ->
     var x = i
     if (x.esim == false) x = x.copy(esim = null)
@@ -132,7 +154,7 @@ fun nowMS(): Double = System.currentTimeMillis().toDouble()
 
 val CATS = listOf("社交", "购物", "支付金融", "开发", "AI", "娱乐", "游戏", "出行", "工具", "加密", "其他")
 
-data class Preset(val name: String, val domain: String, val category: String, val color: String)
+data class Preset(val name: String, val domain: String, val category: String, val color: String, val aliases: String = "")
 
 /** An app the user added by hand (or has an account for) and its own icon, if any. */
 data class CustomApp(val preset: Preset, val icon: String?)
@@ -160,9 +182,30 @@ fun cleanDomain(d: String): String {
   return s.split('/', '?', '#').firstOrNull { it.isNotEmpty() } ?: ""
 }
 
-fun presetFor(name: String, domain: String): Preset? {
-  val d = cleanDomain(domain); val n = name.lowercase()
-  return Presets.all.firstOrNull { p -> (d.isNotEmpty() && (d == p.domain || d.endsWith("." + p.domain))) || p.name.lowercase() == n }
+/** search match: name or domain contains the (lowercased) query, or one of the aliases starts with it */
+fun siteHit(p: Preset, q: String): Boolean =
+  p.name.lowercase().contains(q) || (p.domain.isNotEmpty() && p.domain.contains(q)) || (p.aliases.isNotEmpty() && (" " + p.aliases).contains(" $q"))
+
+/** category of a hand-added app: from the presets, else the site directory, else 其他 */
+fun categoryFor(name: String, domain: String): String {
+  val d = cleanDomain(domain)
+  return presetFor(name, domain)?.category
+    ?: Presets.directory.firstOrNull { (d.isNotEmpty() && it.domain == d) || it.name.lowercase() == name.lowercase() }?.category ?: "其他"
+}
+
+fun presetFor(name: String, domain: String): Preset? = presetMatch(name, domain, byName = true)
+
+/** The built-in app an account is. Exact domain first, then (byName) the name, then a parent domain,
+ *  the longest one, and only when the names agree too: 王者荣耀 on pvp.qq.com is not QQ, and
+ *  企业微信 on work.weixin.qq.com is not 微信. */
+fun presetMatch(name: String, domain: String, byName: Boolean): Preset? {
+  val d = cleanDomain(domain)
+  fun norm(s: String) = s.lowercase().filter { !it.isWhitespace() }
+  val n = norm(name)
+  if (d.isNotEmpty()) Presets.all.firstOrNull { it.domain == d }?.let { return it }
+  if (byName && n.isNotEmpty()) Presets.all.firstOrNull { norm(it.name) == n }?.let { return it }
+  if (d.isEmpty() || n.isEmpty()) return null
+  return Presets.all.filter { d.endsWith("." + it.domain) && n.contains(norm(it.name)) }.maxByOrNull { it.domain.length }
 }
 
 fun carrier(v: String): String {

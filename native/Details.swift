@@ -91,7 +91,7 @@ struct IdentityDetail: View {
       ForEach(store.boundLogins(i.id)) { l in
         let more = store.accounts(of: l.id).filter { !seen.contains($0.id) }
         if !more.isEmpty {
-          section("通过\(l.isApple ? " Apple " : "微信")登录的 \(more.count) 个网站与 App")
+          section("通过\(l.isApple ? " Apple " : l.isQQ ? " QQ " : "微信")登录的 \(more.count) 个网站与 App")
           VStack(spacing: 8) {
             ForEach(more) { a in
               Button { store.route = .account(a.id) } label: { ReelRow(account: a) }.buttonStyle(PressStyle(scale: 0.98))

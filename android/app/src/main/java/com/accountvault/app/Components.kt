@@ -119,9 +119,10 @@ val SKINS: List<Pair<String, Skin>> = listOf(
   "#3a3a3c" to Skin("曜石", listOf("#76767c" to 0f, "#3a3a3c" to 0.46f, "#0d0d10" to 1f)),
 )
 val COLORS = SKINS.map { it.first }
-/** Default skins of 微信 / Apple cards (not in the general swatch list). */
+/** Default skins of 微信 / QQ / Apple cards (not in the general swatch list). */
 val BRAND_SKINS: List<Pair<String, Skin>> = listOf(
   "#07c160" to Skin("微信绿", listOf("#6fe39b" to 0f, "#07c160" to 0.46f, "#03733a" to 1f)),
+  "#12b7f5" to Skin("QQ 蓝", listOf("#8fe3ff" to 0f, "#12b7f5" to 0.46f, "#0a6fb8" to 1f)),
   "#1d1d1f" to Skin("石墨", listOf("#b9bcc2" to 0f, "#4a4b50" to 0.42f, "#121214" to 1f)),
 )
 
@@ -203,8 +204,8 @@ object IconCache {
   val remote = mutableStateMapOf<String, ImageBitmap?>()
   private val http = OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(10, TimeUnit.SECONDS).build()
   fun preset(name: String, domain: String): Preset? {
-    val d = cleanDomain(domain); val n = name.lowercase()
-    return Presets.all.firstOrNull { (d.isNotEmpty() && (d == it.domain || d.endsWith("." + it.domain))) || (d.isEmpty() && it.name.lowercase() == n) }
+    val d = cleanDomain(domain)
+    return presetMatch(name, d, byName = d.isEmpty())
   }
   private fun decode(ctx: Context, p: Preset): ImageBitmap? = bitmaps[p.domain] ?: runCatching {
     ctx.assets.open("icons/${p.domain}.png").use { BitmapFactory.decodeStream(it) }?.asImageBitmap()?.also { it.prepareToDraw(); bitmaps[p.domain] = it }
@@ -303,7 +304,7 @@ fun footNote(i: Identity): String {
   if (i.isLogin) {
     val v = Store.viaOf(i)
     if (v != null) return "绑定 " + Store.title(v)
-    return i.notes.ifEmpty { if (i.isApple) "Apple ID" else "微信号" }
+    return i.notes.ifEmpty { if (i.isApple) "Apple ID" else if (i.isQQ) "QQ 号" else "微信号" }
   }
   if (i.isPhone) {
     val c = carrier(i.value)
@@ -449,7 +450,22 @@ fun kindIcon(i: Identity): ImageVector = when {
 }
 
 @Composable
-fun LoginGlyph(i: Identity, size: Dp, color: Color = Color.White) = if (i.isApple) AppleGlyph(size, color) else WeChatGlyph(size, color)
+fun LoginGlyph(i: Identity, size: Dp, color: Color = Color.White) = if (i.isApple) AppleGlyph(size, color) else if (i.isQQ) QQGlyph(size, color) else WeChatGlyph(size, color)
+
+/** A simple outlined penguin: body, two eyes and a scarf (not the official artwork). */
+@Composable
+fun QQGlyph(size: Dp, color: Color = Color.White) {
+  Canvas(Modifier.size(size)) {
+    val w = this.size.width; val sw = w * 0.075f
+    drawOval(color, topLeft = Offset(w * 0.24f, w * 0.08f), size = Size(w * 0.52f, w * 0.82f), style = Stroke(sw))
+    drawCircle(color, radius = w * 0.05f, center = Offset(w * 0.41f, w * 0.32f))
+    drawCircle(color, radius = w * 0.05f, center = Offset(w * 0.59f, w * 0.32f))
+    val scarf = Path().apply { moveTo(w * 0.27f, w * 0.48f); quadraticBezierTo(w * 0.5f, w * 0.6f, w * 0.73f, w * 0.48f) }
+    drawPath(scarf, color, style = Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+    val feet = Path().apply { moveTo(w * 0.30f, w * 0.92f); lineTo(w * 0.44f, w * 0.92f); moveTo(w * 0.56f, w * 0.92f); lineTo(w * 0.70f, w * 0.92f) }
+    drawPath(feet, color, style = Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+  }
+}
 
 /** Two overlapping chat bubbles, outlined (not the official artwork). */
 @Composable

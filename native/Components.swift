@@ -27,9 +27,10 @@ let SKINS: [(String, Skin)] = [
   ("#3a3a3c", Skin(name: "曜石", stops: [("#76767c", 0), ("#3a3a3c", 0.46), ("#0d0d10", 1)])),
 ]
 let COLORS = SKINS.map(\.0)
-/// default faces of login cards: WeChat green and Apple graphite (the user can pick any skin)
+/// default faces of login cards: WeChat green, QQ blue and Apple graphite (the user can pick any skin)
 let LOGIN_SKINS: [(String, Skin)] = [
   ("#07c160", Skin(name: "微信绿", stops: [("#6be39b", 0), ("#07c160", 0.45), ("#03704f", 1)])),
+  ("#12b7f5", Skin(name: "QQ 蓝", stops: [("#8fe3ff", 0), ("#12b7f5", 0.46), ("#0a6fb8", 1)])),
   ("#1d1d1f", Skin(name: "石墨", stops: [("#b4b6bb", 0), ("#55575d", 0.36), ("#1d1d1f", 1)])),
 ]
 
@@ -154,7 +155,7 @@ final class IconEntry { let image: UIImage; let favicon: Bool; init(_ i: UIImage
     if let k = keyCache[ck] { return k }
     let d = cleanDomain(domain), n = name.lowercased()
     var k = ""
-    if let p = Presets.all.first(where: { (!d.isEmpty && (d == $0.domain || d.hasSuffix("." + $0.domain))) || (d.isEmpty && $0.name.lowercased() == n) }),
+    if let p = presetMatch(name: n, domain: d, byName: d.isEmpty),
        Bundle.main.path(forResource: p.domain, ofType: "png", inDirectory: "icons") != nil {
       k = "b:" + p.domain
     } else if !d.isEmpty { k = "f:" + d }
@@ -369,19 +370,23 @@ struct IdentityGlyph: View {
   var size: CGFloat
   var body: some View {
     if identity.isESim { Text("eSIM").font(.system(size: size * 0.8, weight: .bold, design: .rounded)) }
-    else if identity.isLogin { LoginGlyph(apple: identity.isApple, size: size, filled: true) }
+    else if identity.isLogin { LoginGlyph(provider: identity.loginProvider, size: size, filled: true) }
     else { Image(systemName: identity.isPhone ? "simcard.fill" : "envelope.fill").font(.system(size: size, weight: .semibold)) }
   }
 }
 
-/// 微信: a plain two-bubble outline (not the official logo artwork). Apple: the SF Symbol.
+/// 微信: a plain two-bubble outline (not the official logo artwork). QQ: the letters. Apple: the SF Symbol.
 struct LoginGlyph: View {
-  let apple: Bool
+  let provider: String
   var size: CGFloat
   var filled = false
   var body: some View {
-    Image(systemName: apple ? "apple.logo" : (filled ? "bubble.left.and.bubble.right.fill" : "bubble.left.and.bubble.right"))
-      .font(.system(size: size, weight: apple ? .semibold : .medium))
+    if provider == "qq" {
+      Text("QQ").font(.system(size: size * 0.82, weight: .heavy, design: .rounded)).fixedSize()
+    } else {
+      Image(systemName: provider == "apple" ? "apple.logo" : (filled ? "bubble.left.and.bubble.right.fill" : "bubble.left.and.bubble.right"))
+        .font(.system(size: size, weight: provider == "apple" ? .semibold : .medium))
+    }
   }
 }
 
@@ -401,7 +406,7 @@ struct WalletCard: View {
       VStack(alignment: .leading, spacing: 0) {
         HStack(alignment: .top) {
           HStack(spacing: 8) {
-            if i.isESim { ESimBadge() } else if i.isPhone { Chip() } else if i.isLogin { LoginGlyph(apple: i.isApple, size: 17) } else { Image(systemName: "envelope").font(.system(size: 17, weight: .medium)) }
+            if i.isESim { ESimBadge() } else if i.isPhone { Chip() } else if i.isLogin { LoginGlyph(provider: i.loginProvider, size: 17) } else { Image(systemName: "envelope").font(.system(size: 17, weight: .medium)) }
             Text(cardTitle(i)).font(.system(size: 16, weight: .semibold)).lineLimit(1)
           }
           Spacer()
@@ -440,7 +445,7 @@ struct WalletCard: View {
   func footNote(_ i: Identity) -> String {
     if i.isLogin {
       if let v = store.via(i) { return "绑定 " + store.title(v) }
-      return i.notes.isEmpty ? (i.isApple ? "Apple ID" : "微信号") : i.notes
+      return i.notes.isEmpty ? (i.isApple ? "Apple ID" : i.isQQ ? "QQ 号" : "微信号") : i.notes
     }
     if i.isPhone {
       let c = carrier(i.value)

@@ -122,7 +122,7 @@ struct TopButtons: ToolbarContent {
         Button { store.route = .picker(store.active?.id) } label: { Label("添加网站或 App", systemImage: "square.grid.2x2") }
         Button { store.route = .newIdentity("email") } label: { Label("添加邮箱", systemImage: "envelope") }
         Button { store.route = .newIdentity("phone") } label: { Label("添加手机号", systemImage: "simcard") }
-        Button { store.route = .newIdentity("login") } label: { Label("添加微信或 Apple 账号", systemImage: "person.badge.key") }
+        Button { store.route = .newIdentity("login") } label: { Label("添加微信、QQ 或 Apple 账号", systemImage: "person.badge.key") }
       } label: { Image(systemName: "plus") }
     }
   }
@@ -167,7 +167,7 @@ struct AddCard: View {
     Button { store.route = .newIdentity(kind) } label: {
       VStack(spacing: 10) {
         Image(systemName: "plus").font(.system(size: 26, weight: .medium))
-        Text(kind == "login" ? "添加微信或 Apple 账号" : store.data.identities.isEmpty ? "从一个邮箱或手机号开始" : (kind == "phone" ? "添加手机号" : "添加邮箱")).font(.system(size: 16, weight: .semibold))
+        Text(kind == "login" ? "添加微信、QQ 或 Apple 账号" : store.data.identities.isEmpty ? "从一个邮箱或手机号开始" : (kind == "phone" ? "添加手机号" : "添加邮箱")).font(.system(size: 16, weight: .semibold))
       }
       .foregroundStyle(.secondary)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
