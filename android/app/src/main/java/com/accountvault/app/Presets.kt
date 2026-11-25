@@ -116,4 +116,6 @@ object Presets {
     Preset("Visa", "visa.com", "支付金融", "#1a1f71"),
   )
   val popular: List<String> = listOf("微信", "QQ", "支付宝", "淘宝", "京东", "拼多多", "抖音", "小红书", "哔哩哔哩", "微博", "美团", "知乎", "网易云音乐", "12306", "百度网盘", "Apple ID", "GitHub", "Google", "ChatGPT", "Steam", "豆包", "DeepSeek", "Telegram", "Microsoft")
+  // no built-in domain directory: search is the presets above plus the App Store
+  val directory: List<Preset> = emptyList()
 }
