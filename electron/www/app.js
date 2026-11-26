@@ -192,7 +192,20 @@
     if (i.type === 'login' && provOf(i) === 'wechat') return [...v].slice(0, 2).join('') + '•••';
     if (i.type !== 'phone' && i.type !== 'login') return v.slice(0, 2) + '•••';
     const digits = v.replace(/\D/g, '');
-    return digits.length > 7 ? '••• •••• ' + digits.slice(-4) : '••••';
+    return digits.length > 7 ? '••• •••• ' + digits.slice(-4) : digits.length >= 4 ? '•••' + digits.slice(-2) : '••••';
+  }
+  // 2.5: copied values are best-effort cleared after 60 s (browser only permits reading with permission)
+  let clipTimer = 0;
+  async function copySecret(i) {
+    try { await navigator.clipboard.writeText(i.value); } catch { return toast('复制失败'); }
+    toast('已复制 · 60 秒后自动清除');
+    clearTimeout(clipTimer); const v = i.value;
+    clipTimer = setTimeout(async () => {
+      try {
+        const p = await navigator.permissions?.query({ name: 'clipboard-read' });
+        if (p && p.state === 'granted' && await navigator.clipboard.readText() === v) await navigator.clipboard.writeText('');
+      } catch {}
+    }, 60000);
   }
   const cleanDomain = d => (d || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split(/[/?#]/)[0];
   // the account's own icon (uploaded, or from the App Store): a small square data: URL, synced with the data
@@ -653,7 +666,7 @@
           ${walletCard(i, 'tabindex="-1" data-static')}
         </div>
         <div class="actions">
-          <button class="action" data-copy="${esc(i.value)}">${ICON.copy}复制</button>
+          <button class="action" data-copy-id="${i.id}">${ICON.copy}复制</button>
           <button class="action" data-edit-identity="${i.id}">${ICON.edit}编辑</button>
           <button class="action destructive" data-del-identity="${i.id}">${ICON.trash}删除</button>
         </div>
@@ -811,10 +824,17 @@
     '社交': '社交', '社交网络': '社交', '购物': '购物', '财务': '支付金融', '财经': '支付金融', '开发工具': '开发', '游戏': '游戏', '娱乐': '娱乐', '音乐': '娱乐', '摄影与录像': '娱乐', '旅游': '出行', '旅行': '出行', '导航': '出行' };
   const storeCat = r => { for (const g of [r.primaryGenreName, ...(r.genres || [])]) if (GENRE[g]) return GENRE[g]; return '工具'; };
   const storeArt = r => r.artworkUrl512 || (r.artworkUrl100 || '').replace(/100x100/, '256x256');
+  // 2.5: adult apps never show up in search. Mirrors Model.kt / AppStore.swift.
+  const ADULT_WORDS = /\b(sex|sexy|porn|porno|nsfw|hentai|adult|xxx|nude|nudes|onlyfans|camgirl|hookup)\b|18\s*\+|18禁|性爱|色情|约炮|裸聊|福利姬|情色|黄片|一夜情|成年人|av女优|成人(?!教育|高考|自考|学历|英语|本科|大学|学习)/i;
+  function isAdultApp(r) {
+    if ([r.contentAdvisoryRating, r.trackContentRating].some(x => String(x || '').trim().startsWith('18'))) return true;
+    if ((r.advisories || []).some(a => /sexual|nudity|性内容|性相关|裸露|色情/i.test(a) && /\b(frequent|intense|graphic)\b|频繁|强烈|极端|大量/i.test(a))) return true;
+    return [r.trackName, r.primaryGenreName, ...(r.genres || [])].some(x => ADULT_WORDS.test(String(x || '')));
+  }
   async function storeSearch(q) {
-    const r = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&country=cn&entity=software&limit=8`);
+    const r = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&country=cn&entity=software&limit=10&explicit=No`);
     if (!r.ok) throw 0;
-    return ((await r.json()).results || []).filter(x => x.trackName && (x.artworkUrl100 || x.artworkUrl512));
+    return ((await r.json()).results || []).filter(x => x.trackName && (x.artworkUrl100 || x.artworkUrl512) && !isAdultApp(x));
   }
   async function storeIcon(url) {
     if (!/^https:\/\/[a-z0-9.-]+\.mzstatic\.com\//.test(url)) throw 0;
@@ -1290,7 +1310,7 @@
     if (d.new === 'identity') return identityForm(null, d.type);
     if (d.new === 'account') return pickApps(d.preset);
     if (d.quick !== undefined) { closeSpot(); return pickApps(null, d.quick); }
-    if (d.copy) { navigator.clipboard?.writeText(d.copy).then(() => toast('已复制'), () => toast('复制失败')); return; }
+    if (d.copyId) { const i = idById(d.copyId); if (i) copySecret(i); return; }
     if (d.editIdentity) return identityForm(idById(d.editIdentity));
     if (d.editAccount) return accountForm(accById(d.editAccount));
     if (d.delIdentity) {

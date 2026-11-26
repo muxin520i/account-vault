@@ -238,7 +238,12 @@ data class AppHit(
   val genreIds: List<String> = emptyList(),
   val artworkUrl100: String? = null,
   val artworkUrl512: String? = null,
+  val contentAdvisoryRating: String? = null,
+  val trackContentRating: String? = null,
+  val advisories: List<String> = emptyList(),
 ) {
+  /** 18+ / sexual content: never shown in search (see [isAdultApp]) */
+  val adult: Boolean get() = isAdultApp(trackName, primaryGenreName, genres, contentAdvisoryRating, trackContentRating, advisories)
   /** "支付宝-你的AI生活伙伴" -> "支付宝"; only when what is left before the dash is >= 2 chars. */
   val name: String get() = appStoreName(trackName)
   val domain: String get() = sellerUrl?.let { cleanDomain(it) } ?: ""
@@ -248,7 +253,17 @@ data class AppHit(
 }
 
 fun appStoreURL(term: String): String =
-  "https://itunes.apple.com/search?term=" + java.net.URLEncoder.encode(term.trim(), "UTF-8") + "&country=cn&entity=software&limit=8"
+  "https://itunes.apple.com/search?term=" + java.net.URLEncoder.encode(term.trim(), "UTF-8") + "&country=cn&entity=software&limit=10&explicit=No"
+
+/** 2.5: adult apps never show up in App Store search. Mirrors app.js / AppStore.swift. */
+private val ADULT_WORDS = Regex("""\b(sex|sexy|porn|porno|nsfw|hentai|adult|xxx|nude|nudes|onlyfans|camgirl|hookup)\b|18\s*\+|18禁|性爱|色情|约炮|裸聊|福利姬|情色|黄片|一夜情|成年人|av女优|成人(?!教育|高考|自考|学历|英语|本科|大学|学习)""", RegexOption.IGNORE_CASE)
+private val SEXUAL = Regex("""sexual|nudity|性内容|性相关|裸露|色情""", RegexOption.IGNORE_CASE)
+private val STRONG = Regex("""\b(frequent|intense|graphic)\b|频繁|强烈|极端|大量""", RegexOption.IGNORE_CASE)
+fun isAdultApp(name: String, genre: String = "", genres: List<String> = emptyList(), rating: String? = null, trackRating: String? = null, advisories: List<String> = emptyList()): Boolean {
+  if (listOf(rating, trackRating).any { it?.trim()?.startsWith("18") == true }) return true
+  if (advisories.any { SEXUAL.containsMatchIn(it) && STRONG.containsMatchIn(it) }) return true
+  return ADULT_WORDS.containsMatchIn(name) || ADULT_WORDS.containsMatchIn(genre) || genres.any { ADULT_WORDS.containsMatchIn(it) }
+}
 
 fun appStoreName(raw: String): String {
   val t = raw.trim()
@@ -286,8 +301,9 @@ fun parseAppStore(text: String): List<AppHit> = runCatching {
     val o = e as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
     val n = o.str("trackName")?.trim().orEmpty()
     if (n.isEmpty()) null
-    else AppHit(n, o.str("sellerUrl"), o.str("primaryGenreName").orEmpty(), o.list("genres"), o.list("genreIds"), o.str("artworkUrl100"), o.str("artworkUrl512"))
-  }
+    else AppHit(n, o.str("sellerUrl"), o.str("primaryGenreName").orEmpty(), o.list("genres"), o.list("genreIds"), o.str("artworkUrl100"), o.str("artworkUrl512"),
+      o.str("contentAdvisoryRating"), o.str("trackContentRating"), o.list("advisories"))
+  }.filter { !it.adult }
 }.getOrDefault(emptyList())
 
 /** Natural, locale-aware-ish name order (like localizedStandardCompare). */

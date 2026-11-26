@@ -16,7 +16,7 @@ struct IdentityDetail: View {
           VStack(spacing: 0) {
             WalletCard(identity: i).padding(.horizontal, 28).padding(.top, 8)
             HStack(spacing: 10) {
-              action("复制", "doc.on.doc") { UIPasteboard.general.string = i.value; copied += 1; store.show("已复制") }
+              action("复制", "doc.on.doc") { store.copySecret(i); copied += 1 }
               action("编辑", "pencil") { store.route = .editIdentity(i.id) }
               action("删除", "trash", role: .destructive) { askDelete = true }
             }

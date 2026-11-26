@@ -158,6 +158,30 @@ object Store {
     toastJob = scope.launch { delay(if (action == null) 2200 else 4500); if (toast?.id == t.id) toast = null }
   }
 
+  // MARK: copying an account value: marked sensitive (no clipboard preview), cleared after 60 s
+  private var clip: Pair<String, Long>? = null
+  fun copySecret(ctx: Context, value: String, shown: String) {
+    val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    val c = android.content.ClipData.newPlainText("账号", value)
+    c.description.extras = android.os.PersistableBundle().apply { putBoolean("android.content.extra.IS_SENSITIVE", true) }
+    runCatching { cm.setPrimaryClip(c) }.onFailure { show("复制失败"); return }
+    clip = value to System.currentTimeMillis()
+    show("已复制 $shown · 60 秒后自动清除")
+    val app = ctx.applicationContext
+    scope.launch { delay(60_500); checkClipboard(app) }
+  }
+  /** clears the clipboard if it still holds what was copied 60 s ago */
+  fun checkClipboard(ctx: Context) {
+    val pair = clip ?: return
+    if (System.currentTimeMillis() - pair.second < 60_000) return
+    val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    val now = runCatching { cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString() }.getOrNull() ?: return
+    clip = null
+    if (now == pair.first) runCatching {
+      if (android.os.Build.VERSION.SDK_INT >= 28) cm.clearPrimaryClip() else cm.setPrimaryClip(android.content.ClipData.newPlainText("", ""))
+    }
+  }
+
   fun setKind(k: String, focus: String? = null) {
     setKindPref(k)
     activeID = focus ?: deck.firstOrNull()?.id ?: "add"

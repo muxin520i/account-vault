@@ -103,8 +103,7 @@ fun IdentityDetail(id: String) {
     WalletCard(i, Modifier.padding(horizontal = 28.dp).padding(top = 8.dp))
     Row(Modifier.padding(horizontal = 20.dp).padding(top = 26.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
       ActionTile("复制", Icons.Outlined.ContentCopy, Modifier.weight(1f)) {
-        (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("账号", i.value))
-        hap(CONFIRM); Store.show("已复制")
+        Store.copySecret(ctx, i.value, Store.display(i)); hap(CONFIRM)
       }
       ActionTile("编辑", Icons.Outlined.Edit, Modifier.weight(1f)) { Store.push(Route.EditIdentity(i.id)) }
       ActionTile("删除", Icons.Outlined.Delete, Modifier.weight(1f), destructive = true) { askDelete = true }

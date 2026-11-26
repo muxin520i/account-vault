@@ -64,7 +64,12 @@ struct AppStoreApp: Decodable, Hashable, Identifiable {
   let genres: [String]?
   let artworkUrl100: String?
   let artworkUrl512: String?
+  let contentAdvisoryRating: String?
+  let trackContentRating: String?
+  let advisories: [String]?
   var id: Int { trackId }
+  /// 18+ / sexual content: never shown in search (see isAdultApp)
+  var adult: Bool { isAdultApp(name: trackName, genres: [primaryGenreName ?? ""] + (genres ?? []), ratings: [contentAdvisoryRating, trackContentRating], advisories: advisories ?? []) }
 
   /// "支付宝-你的AI生活伙伴" -> "支付宝": cut at the first dash when what's left is at least 2 chars
   var cleanName: String {
@@ -99,14 +104,24 @@ struct AppStoreApp: Decodable, Hashable, Identifiable {
   }
 }
 
+/// 2.5: adult apps never show up in App Store search. Mirrors app.js / Model.kt.
+func isAdultApp(name: String, genres: [String] = [], ratings: [String?] = [], advisories: [String] = []) -> Bool {
+  func has(_ s: String, _ pattern: String) -> Bool { s.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil }
+  if ratings.contains(where: { ($0 ?? "").trimmingCharacters(in: .whitespaces).hasPrefix("18") }) { return true }
+  let sexual = "sexual|nudity|性内容|性相关|裸露|色情", strong = "\\b(frequent|intense|graphic)\\b|频繁|强烈|极端|大量"
+  if advisories.contains(where: { has($0, sexual) && has($0, strong) }) { return true }
+  let words = "\\b(sex|sexy|porn|porno|nsfw|hentai|adult|xxx|nude|nudes|onlyfans|camgirl|hookup)\\b|18\\s*\\+|18禁|性爱|色情|约炮|裸聊|福利姬|情色|黄片|一夜情|成年人|av女优|成人(?!教育|高考|自考|学历|英语|本科|大学|学习)"
+  return ([name] + genres).contains { has($0, words) }
+}
+
 enum AppStoreSearch {
   private struct Reply: Decodable { let results: [AppStoreApp] }
   /// nil when offline or anything else goes wrong: callers just show no App Store section
   static func search(_ q: String) async -> [AppStoreApp]? {
     var c = URLComponents(string: "https://itunes.apple.com/search")!
-    c.queryItems = [.init(name: "term", value: q), .init(name: "country", value: "cn"), .init(name: "entity", value: "software"), .init(name: "limit", value: "8")]
+    c.queryItems = [.init(name: "term", value: q), .init(name: "country", value: "cn"), .init(name: "entity", value: "software"), .init(name: "limit", value: "10"), .init(name: "explicit", value: "No")]
     guard let u = c.url, let res = try? await URLSession.shared.data(from: u), ((res.1 as? HTTPURLResponse)?.statusCode ?? 0) == 200 else { return nil }
-    return (try? JSONDecoder().decode(Reply.self, from: res.0))?.results
+    return (try? JSONDecoder().decode(Reply.self, from: res.0))?.results.filter { !$0.adult }
   }
 }
 

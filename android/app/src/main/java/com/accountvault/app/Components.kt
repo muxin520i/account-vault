@@ -60,6 +60,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -452,18 +453,20 @@ fun kindIcon(i: Identity): ImageVector = when {
 @Composable
 fun LoginGlyph(i: Identity, size: Dp, color: Color = Color.White) = if (i.isApple) AppleGlyph(size, color) else if (i.isQQ) QQGlyph(size, color) else WeChatGlyph(size, color)
 
-/** A simple outlined penguin: body, two eyes and a scarf (not the official artwork). */
+/** Outlined QQ penguin silhouette: same 24×24 path as the web icon (ICON.qq in app.js), not the official artwork. */
+private val qqBody = androidx.compose.ui.graphics.vector.PathParser().parsePathString(
+  "M12 2.8c-3.3 0-5.6 2.6-5.6 6 0 .8.1 1.5.3 2.1-1.1 1.4-2.2 3.3-2.2 5 0 .9.4 1.3 1 .9.5-.3 1-.9 1.3-1.5.3 1.2 1 2.3 1.8 3.1-1 .4-1.9 1-1.9 1.6 0 .8 1.6 1.2 3.4 1.2 1.1 0 2-.2 2.6-.5h.6c.6.3 1.5.5 2.6.5 1.8 0 3.4-.4 3.4-1.2 0-.6-.9-1.2-1.9-1.6.8-.8 1.5-1.9 1.8-3.1.3.6.8 1.2 1.3 1.5.6.4 1 0 1-.9 0-1.7-1.1-3.6-2.2-5 .2-.6.3-1.3.3-2.1 0-3.4-2.3-6-5.6-6Z" +
+  "M8.6 11.6c2.2 1 4.6 1 6.8 0").toPath()
+
 @Composable
 fun QQGlyph(size: Dp, color: Color = Color.White) {
   Canvas(Modifier.size(size)) {
-    val w = this.size.width; val sw = w * 0.075f
-    drawOval(color, topLeft = Offset(w * 0.24f, w * 0.08f), size = Size(w * 0.52f, w * 0.82f), style = Stroke(sw))
-    drawCircle(color, radius = w * 0.05f, center = Offset(w * 0.41f, w * 0.32f))
-    drawCircle(color, radius = w * 0.05f, center = Offset(w * 0.59f, w * 0.32f))
-    val scarf = Path().apply { moveTo(w * 0.27f, w * 0.48f); quadraticBezierTo(w * 0.5f, w * 0.6f, w * 0.73f, w * 0.48f) }
-    drawPath(scarf, color, style = Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-    val feet = Path().apply { moveTo(w * 0.30f, w * 0.92f); lineTo(w * 0.44f, w * 0.92f); moveTo(w * 0.56f, w * 0.92f); lineTo(w * 0.70f, w * 0.92f) }
-    drawPath(feet, color, style = Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+    val k = this.size.width / 24f
+    scale(k, k, pivot = androidx.compose.ui.geometry.Offset.Zero) {
+      drawPath(qqBody, color, style = Stroke(1.7f, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+      drawCircle(color, radius = 0.9f, center = androidx.compose.ui.geometry.Offset(10f, 8.2f))
+      drawCircle(color, radius = 0.9f, center = androidx.compose.ui.geometry.Offset(14f, 8.2f))
+    }
   }
 }
 

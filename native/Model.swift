@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import UIKit
 import Observation
+import UniformTypeIdentifiers
 
 // MARK: - data (same JSON shape as the web app, so backups and sync interoperate)
 
@@ -503,6 +504,12 @@ final class Store {
     DispatchQueue.main.asyncAfter(deadline: .now() + (action == nil ? 2.2 : 4.5)) { [weak self] in
       if self?.toast == t { withAnimation(.easeInOut(duration: 0.3)) { self?.toast = nil } }
     }
+  }
+
+  // MARK: 2.5 copying an account value: local only, expires after 60 s
+  func copySecret(_ i: Identity) {
+    UIPasteboard.general.setItems([[UTType.plainText.identifier: i.value]], options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(60)])
+    show("已复制 \(display(i)) · 60 秒后自动清除")
   }
 
   func setKind(_ k: String, focus: String? = nil) {
