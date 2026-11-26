@@ -520,7 +520,6 @@
     dataVer++;
     renderSummary(); renderWallet(); renderGrid(); renderTimeline(); renderSites();
     $('#menu [data-act="privacy"] span').textContent = ui.privacy ? '显示完整号码' : '隐藏号码';
-    if (ui.tab === 'graph') Graph.rebuild(); else Graph.prebuild();
   }
 
   // ---------- appearance ----------
@@ -564,7 +563,7 @@
   }
 
   // ---------- tabs ----------
-  const TABS = ['home', 'sites', 'graph'];
+  const TABS = ['home', 'sites'];
   function setTab(tab) {
     if (tab === ui.tab) { scrollTo({ top: 0, behavior: 'smooth' }); return; }
     const from = TABS.indexOf(ui.tab); ui.tab = tab;
@@ -573,10 +572,9 @@
     th.style.transform = `translateY(${idx * 54}px)`;
     if (!calm()) th.animate([{ scale: '1 1' }, { scale: `${1 + .16 * Math.abs(idx - from)} 1.14`, offset: .35 }, { scale: '.97 .96', offset: .7 }, { scale: '1 1' }], { duration: 620, easing: 'cubic-bezier(.32,.72,0,1)' });
     $$('.view').forEach(v => { const on = v.dataset.view === tab; v.classList.toggle('active', on); v.classList.toggle('from-r', on && idx > from); v.classList.toggle('from-l', on && idx < from); });
-    $('#topTitle').textContent = { home: '账号', sites: '网站与 App', graph: '关系图' }[tab];
+    $('#topTitle').textContent = { home: '账号', sites: '网站与 App' }[tab];
     scrollTo(0, 0);
     // first paint of the tab change goes out before the map is (re)built, so the two never share a frame
-    if (tab === 'graph') requestAnimationFrame(() => { if (ui.tab === 'graph') Graph.start(); }); else Graph.stop();
     if (tab === 'home') { if (geo) geo.ok = false; if (!rafCF) rafCF = requestAnimationFrame(coverflow); if (gridStale) { gridStale = false; renderGrid(); } }
   }
 
@@ -1368,94 +1366,8 @@
     if (rafTop) return;
     rafTop = requestAnimationFrame(() => { rafTop = 0; const on = scrollY > 30; if (on !== topOn) top.classList.toggle('scrolled', topOn = on); });
   }, { passive: true });
-  addEventListener('resize', () => { Graph.resize(); if (geo) geo.ok = false; if (!rafCF) rafCF = requestAnimationFrame(coverflow); });
+  addEventListener('resize', () => { if (geo) geo.ok = false; if (!rafCF) rafCF = requestAnimationFrame(coverflow); });
 
-  // ---------- relationship map: identities on the left, apps on the right, threads between ----------
-  const Graph = (() => {
-    let sel = null, running = false, drawn = false, built = '', pre = 0;
-    const ROW = 54;
-    function layout() {
-      const TR = t => KINDS.indexOf(t);
-      const ids = state.identities.filter(i => TR(i.type) >= 0).sort((p, q) => TR(p.type) - TR(q.type));
-      const idx = id => ids.findIndex(i => i.id === id);
-      const first = a => { const ks = a.identityIds.map(idx).filter(k => k >= 0); return ks.length ? Math.min(...ks) : 1e3; };
-      const apps = state.accounts.slice().sort((a, b) => first(a) - first(b) || b.identityIds.length - a.identityIds.length || zh(a.name, b.name));
-      const ay = {}; apps.forEach((a, k) => ay[a.id] = k * ROW + ROW / 2);
-      const H = Math.max(apps.length * ROW, ids.length * 78, 120);
-      // each card sits at the middle of its apps, then nudge apart so cards never overlap
-      let pos = ids.map(i => { const ys = accountsOf(i.id).map(a => ay[a.id]); return { i, y: ys.length ? ys.reduce((s, v) => s + v, 0) / ys.length : H }; });
-      // emails first, then phone numbers, then login cards, with a small label above each group
-      pos.sort((p, q) => TR(p.i.type) - TR(q.i.type) || p.y - q.y);
-      const GAP = 78, half = 33, LBL = 30;
-      const brk = new Set(pos.map((p, k) => k && p.i.type !== pos[k - 1].i.type ? k : -1).filter(k => k > 0));
-      const minY = []; pos.forEach((p, k) => minY[k] = k ? minY[k - 1] + GAP + (brk.has(k) ? LBL : 0) : half + LBL);
-      for (let k = 0; k < pos.length; k++) pos[k].y = Math.max(pos[k].y, minY[k]);
-      const over = pos.length ? pos[pos.length - 1].y - (H - half) : 0;
-      if (over > 0) for (let k = pos.length - 1; k >= 0; k--) { pos[k].y = Math.min(pos[k].y, k === pos.length - 1 ? H - half : pos[k + 1].y - GAP - (brk.has(k + 1) ? LBL : 0)); pos[k].y = Math.max(pos[k].y, minY[k]); }
-      // the group label can push cards past the app column, so grow the box to fit them
-      const H2 = Math.max(H, pos.length ? pos[pos.length - 1].y + half : 0);
-      return { apps, ay, pos, H: H2, brk };
-    }
-    function render() {
-      const box = $('#mapBox'); if (!box) return;
-      const n = state.accounts.length, multi = state.accounts.filter(a => a.identityIds.length > 1).length;
-      $('#graphSummary').textContent = n ? `${state.identities.length} 个身份，${n} 个网站与 App` + (multi ? `，${multi} 个绑了不止一个` : '') : '';
-      if (!state.identities.length || !n) { box.innerHTML = `<div class="empty"><h3>还没有可以连线的</h3><p>添加一个邮箱或手机号，再给它记几个网站，这里就会连起来。</p><button class="btn-filled" data-new="${state.identities.length ? 'account' : 'identity'}">${state.identities.length ? '添加网站或 App' : '添加邮箱或手机号'}</button></div>`; return; }
-      const { apps, ay, pos, H, brk } = layout();
-      const W = box.clientWidth || 350, L = Math.min(150, Math.round(W * .38)), R = L + Math.max(56, Math.round(W * .17));
-      const paths = [];
-      for (const p of pos) for (const a of accountsOf(p.i.id)) {
-        const y1 = p.y, y2 = ay[a.id], mx = (L + R) / 2;
-        paths.push(`<path data-i="${p.i.id}" data-a="${a.id}" style="--c:${p.i.color}" d="M${L} ${y1.toFixed(1)}C${mx} ${y1.toFixed(1)} ${mx} ${y2.toFixed(1)} ${R - 6} ${y2.toFixed(1)}"/>`);
-      }
-      box.style.height = H + 'px';
-      box.innerHTML = `<svg class="threads" viewBox="0 0 ${W} ${H}" style="width:${W}px;height:${H}px" aria-hidden="true">${paths.join('')}</svg>
-        ${pos.map((p, k) => (k === 0 || brk.has(k)) ? `<span class="mgroup" style="top:${p.y - 31 - 24}px;width:${L}px">${p.i.type === 'phone' ? ICON.phone + '手机号' : p.i.type === 'login' ? ICON.login + '登录' : ICON.email + '邮箱'}</span>` : '').join('')}
-        ${pos.map(p => { const c = accountsOf(p.i.id).length; return `<button class="mcard" data-map-identity="${p.i.id}" style="top:${p.y - 31}px;width:${L}px;--c:${p.i.color};--g:${skin(p.i.color)}"><span class="mk">${idGlyph(p.i)}<b>${c}</b></span><span class="mv">${esc(p.i.label || display(p.i))}</span>${p.i.label ? `<span class="ms">${esc(display(p.i))}</span>` : ''}</button>`; }).join('')}
-        ${apps.map(a => `<button class="mapp ${a.identityIds.length ? '' : 'loose'}" data-account="${a.id}" style="top:${ay[a.id] - ROW / 2}px;left:${R}px">${favIcon(a)}<span class="mn">${esc(a.name)}${handle(a)}</span>${a.identityIds.length > 1 ? `<span class="mdots">${a.identityIds.map(idById).filter(Boolean).map(i => `<i style="--c:${i.color}"></i>`).join('')}</span>` : ''}</button>`).join('')}`;
-      built = dataVer + ':' + W;
-      apply(); if (running) draw();
-    }
-    // lengths are measured once per path (geometry only) and cached for revisits
-    function draw() {
-      if (drawn) return; drawn = true;
-      // wait two frames so the tab is actually visible (content-visibility) before the threads start drawing
-      const ps = $$('#mapBox .threads path');
-      ps.forEach(p => { const len = p._len || (p._len = Math.ceil(p.getTotalLength()) + 2); p.style.strokeDasharray = `${len}px ${len}px`; p.style.strokeDashoffset = `${len}px`; });   // hidden until the draw starts, no flash
-      requestAnimationFrame(() => requestAnimationFrame(() => { ps.forEach((p, k) => { const len = p._len; p.style.strokeDasharray = p.style.strokeDashoffset = ''; if (!running) return; p.animate([{ strokeDasharray: `${len}px ${len}px`, strokeDashoffset: `${len}px` }, { strokeDasharray: `${len}px ${len}px`, strokeDashoffset: '0px' }], { duration: 700, delay: 60 + Math.min(k, 20) * 18, easing: 'cubic-bezier(.32,.72,0,1)', fill: 'backwards' }); }); }));
-    }
-    function apply() {
-      const box = $('#mapBox'); if (!box) return;
-      box.classList.toggle('focus', !!sel);
-      const linked = new Set(sel ? accountsOf(sel).map(a => a.id) : []);
-      $$('.threads path', box).forEach(p => p.classList.toggle('on', p.dataset.i === sel));
-      $$('.mcard', box).forEach(c => c.classList.toggle('on', c.dataset.mapIdentity === sel));
-      $$('.mapp', box).forEach(c => c.classList.toggle('on', linked.has(c.dataset.account)));
-    }
-    document.addEventListener('click', e => {
-      if (ui.tab !== 'graph' || e.target.closest('.sheet,.menu,#tabbar,.top')) return;
-      const c = e.target.closest('[data-map-identity]');
-      if (c) { const id = c.dataset.mapIdentity; if (sel === id) showIdentity(id); else { sel = id; apply(); } return; }
-      if (!e.target.closest('.mapp') && sel) { sel = null; apply(); }
-    });
-    let rz;
-    return {
-      // coming back to an unchanged map reuses its DOM and only replays the thread draw-in
-      start() {
-        running = true; drawn = false; sel = null;
-        const box = $('#mapBox');
-        if (box && built && built === dataVer + ':' + (box.clientWidth || 350)) { apply(); draw(); } else render();
-      },
-      stop() { running = false; },
-      // build the map while the browser is idle and the tab is hidden, so the first visit only plays the draw-in
-      prebuild() {
-        clearTimeout(pre); const idle = window.requestIdleCallback || (f => setTimeout(f, 300));
-        pre = setTimeout(() => idle(() => { const box = $('#mapBox'); if (!running && box && built !== dataVer + ':' + (box.clientWidth || 350)) render(); }, { timeout: 2000 }), 400);
-      },
-      rebuild() { if (running) render(); },
-      resize() { if (running) { clearTimeout(rz); rz = setTimeout(render, 120); } },
-    };
-  })();
 
   // ---------- end-to-end encrypted sync (Gitee or GitHub private gist) ----------
   const Sync = (() => {

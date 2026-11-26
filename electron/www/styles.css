@@ -409,33 +409,7 @@ body.is-empty main .block, body.is-empty #dots{display:none}
 .tabbar button svg{width:24px;height:24px}
 
 /* relationship map */
-.map{position:relative;margin:26px 20px 0}
-.map .threads{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
-.threads path{fill:none;stroke:var(--c);stroke-width:1.8;stroke-opacity:.5;stroke-linecap:round;transition:stroke-opacity .3s,stroke-width .3s}
-.map.focus .threads path{stroke-opacity:.07}
-.map.focus .threads path.on{stroke-opacity:1;stroke-width:2.4}
-.mcard{position:absolute;left:0;height:62px;border-radius:12px;padding:8px 10px;text-align:left;color:#fff;background:var(--g,var(--c));overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;
   box-shadow:0 10px 24px -10px color-mix(in srgb,var(--c) 70%,transparent),inset 0 1px 0 rgba(255,255,255,.28);transition:transform .35s var(--bounce),opacity .3s}
-.mcard:active{transform:scale(.95)}
-.mk{display:flex;align-items:center;justify-content:space-between}
-.mk svg{width:16px;height:16px;stroke-width:2;opacity:.9}
-.mk b{font-size:15px;font-weight:700;line-height:1}
-.mv{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.15}
-.ms{font-size:10.5px;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.1;margin-top:-2px}
-.mcard:has(.ms) .mv{margin-top:2px}
-.map.focus .mcard{opacity:.4}
-.map.focus .mcard.on{opacity:1;transform:scale(1.04)}
-.mapp{position:absolute;right:0;height:54px;display:flex;align-items:center;gap:10px;text-align:left;transition:opacity .3s}
-.mapp .icon{width:34px;height:34px;border-radius:9px}
-.mapp .fav.letter{font-size:15px}
-.mn{font-size:14.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
-.mdots{display:flex;gap:3px;flex:none;padding-right:2px}
-.mdots i{width:7px;height:7px;border-radius:50%;background:var(--c)}
-.mapp.loose .icon{opacity:.5}
-.map.focus .mapp{opacity:.28}
-.map.focus .mapp.on{opacity:1}
-.map-tip{color:var(--tertiary);font-size:13px;margin:22px 20px 0}
-.map .empty{padding-top:60px}
 
 /* app picker */
 .pick-head{flex:none;padding:2px 16px 0}
@@ -509,14 +483,9 @@ html[data-theme=light] .spot-layer{background:rgba(242,242,247,.7)}
 html[data-theme=light] .spot-results mark{color:#000}
 html[data-theme=light] .toast{background:rgba(255,255,255,.86);box-shadow:0 14px 44px rgba(0,0,0,.15)}
 html[data-theme=light] .wcard{box-shadow:0 20px 40px -14px color-mix(in srgb,var(--c) 60%,transparent),0 2px 0 rgba(255,255,255,.3) inset}
-html[data-theme=light] .mcard{box-shadow:0 8px 20px -8px color-mix(in srgb,var(--c) 60%,transparent),inset 0 1px 0 rgba(255,255,255,.3)}
-html[data-theme=light] .threads path{stroke-opacity:.6}
-html[data-theme=light] .map.focus .threads path{stroke-opacity:.08}
-html[data-theme=light] .map.focus .threads path.on{stroke-opacity:1}
 html[data-theme=light] .form-hero{background:radial-gradient(45% 80% at 50% 35%,color-mix(in srgb,var(--pc,transparent) 22%,transparent),transparent 72%)}
 html[data-theme=light] .fav{box-shadow:inset 0 0 0 .5px rgba(0,0,0,.08)}
 html[data-theme=light] .check-cell .tick{color:var(--tint)}
-.threads path{stroke-opacity:.62}
 .pick-grid{min-height:58vh;align-content:start}
 html[data-theme=light] .reel .blur{opacity:.11}
 /* v4.1 sharp bundled icons, handles */
@@ -546,8 +515,6 @@ html[data-theme=light] .reel .blur{opacity:.11}
 .wcard.sim .wc-value{font-variant-numeric:tabular-nums;letter-spacing:.04em;font-size:22px}
 .wcard.ghost.sim{clip-path:none}
 /* map group labels */
-.mgroup{position:absolute;left:0;display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;color:var(--secondary);letter-spacing:.02em}
-.mgroup svg{width:14px;height:14px;stroke-width:2}
 html[data-theme=light] .kind-seg{background:rgba(118,118,128,.12)}
 html[data-theme=light] .kind-seg .thumb{background:#fff;box-shadow:0 3px 8px rgba(0,0,0,.12)}
 html[data-theme=light] .kind-seg button.on{color:#000}
@@ -778,7 +745,7 @@ html[data-theme=light] .hero-edit{background:#e5e5ea}
 html[data-theme=light] .prov-pills button.on[data-p=apple]{background:#1d1d1f;color:#fff}
 .cat-list.indirect .reel{opacity:.85}
 
-/* ===== 定制：右侧竖排 4 键导航（卡包/全部App/关系图/设置） ===== */
+/* ===== 定制：右侧竖排 3 键导航（首页/全部App/设置） ===== */
 .tabbar{
   left:auto!important; right:14px; top:50%!important; bottom:auto!important;
   transform:translateY(-50%)!important;
@@ -799,6 +766,7 @@ html[data-theme=light] .prov-pills button.on[data-p=apple]{background:#1d1d1f;co
   position:fixed!important; right:84px; top:50%;
   transform-origin:right center!important;
   transform:translateY(-50%) scale(.5)!important;
+  z-index:38;
 }
 .menu.open{transform:translateY(-50%) scale(1)!important}
 main{padding-bottom:24px!important}
